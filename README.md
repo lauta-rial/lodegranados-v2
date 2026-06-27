@@ -62,6 +62,7 @@ Claude Code auto-reads `CLAUDE.md` and `.mcp.json`. It will have access to all M
 | `.mcp.example.json` | Template for `.mcp.json` |
 | `docs/db-schema.md` | Full database design (14 tables, RLS policies) |
 | `docs/user-stories.md` | All features with acceptance criteria (P0/P1/P2) |
+| `docs/design-system.md` | **Complete design reference** — colors, CSS for every component, page layouts. Claude Code uses this to match the v1 UI exactly. |
 
 ---
 

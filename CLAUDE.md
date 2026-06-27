@@ -113,11 +113,12 @@ Full schema with column types, relationships, and indexes in `docs/db-schema.md`
 
 1. Read `docs/user-stories.md` for the full feature spec
 2. Read `docs/db-schema.md` for the DB design
-3. Start with Supabase: create schema migrations, set up auth
-4. Build frontend page by page, priority order
-5. Each page: connect to Supabase via MCP, add loading/empty/error states
-6. Add MercadoPago integration last
-7. Deploy to Vercel via MCP
+3. Read `docs/design-system.md` for ALL visual design — colors, components, page layouts, CSS snippets. **Every component has exact CSS here — use it directly.**
+4. Start with Supabase: create schema migrations, set up auth
+5. Build frontend page by page, priority order, matching the design system exactly
+6. Each page: connect to Supabase via MCP, add loading/empty/error states
+7. Add MercadoPago integration last
+8. Deploy to Vercel via MCP
 
 ## Testing
 
