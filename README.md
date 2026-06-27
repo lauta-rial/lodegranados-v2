@@ -62,7 +62,7 @@ Claude Code auto-reads `CLAUDE.md` and `.mcp.json`. It will have access to all M
 | `.mcp.example.json` | Template for `.mcp.json` |
 | `docs/db-schema.md` | Full database design (14 tables, RLS policies) |
 | `docs/user-stories.md` | All features with acceptance criteria (P0/P1/P2) |
-| `docs/design-system.md` | **Complete design reference** — colors, CSS for every component, page layouts. Claude Code uses this to match the v1 UI exactly. |
+| `docs/design-system.md` | Design **direction** — principles, inspiration, what to redesign. Claude Code designs fresh within these guidelines. |
 
 ---
 
@@ -100,22 +100,22 @@ Claude Code auto-reads `CLAUDE.md` and `.mcp.json`. It will have access to all M
 
 ---
 
-## Design
+## Design (v2)
 
-- Glass panels with dark gradient overlays
-- Warm palette: wine reds, golds, dark greens
-- Tailwind v4 with custom theme
-- Responsive: 1→2→4 col grids
-- Skeleton loading states everywhere
-- Mobile sticky CTA bar on detail pages
-- Staggered fade-in animations
+**Fresh redesign — not a copy of v1.** See `docs/design-system.md` for direction.
 
-## v1 Lessons (do NOT repeat in v2)
+- Modern, premium, editorial. Photography-first.
+- Warm palette, confident typography. Light-first or light/dark toggle.
+- No forced glassmorphism. Content should breathe.
+- Four-state handling: loading (skeletons), empty, error, success
+- Responsive: 1→2→3/4 col grids
+
+## v1 Lessons (do NOT repeat)
 
 1. `useAuth().user` is email string, not object
-2. DB-first deletion: delete from DB, refetch, never filter frontend
+2. DB-first deletion: delete from DB, refetch — never filter on frontend
 3. MercadoPago sandbox: cardholder `APRO` for approved payment
 4. Breadcrumb eliminated — do NOT add
-5. Checkout page is orphaned — catas/cursos go directly to MercadoPago
+5. Checkout page is orphaned — catas/cursos go directly to MP
 6. CORS only allows production domain
-7. Always verify build with `npm run build` before push
+7. Always `npm run build` before push (tsc --noEmit unreliable)

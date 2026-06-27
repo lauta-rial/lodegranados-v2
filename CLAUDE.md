@@ -58,13 +58,16 @@ Available tools from each MCP:
 
 ## Design Conventions
 
-- **Glass panels** with dark gradient overlays
-- **Warm palette** (wine reds, golds, dark greens)
-- **Tailwind v4** with custom theme
-- **Responsive**: 1 col (mobile) → 2 cols (tablet) → 4 cols (desktop) for card grids
-- **Skeleton loading states** for all data fetching
-- **Staggered fade-in animations** on cards
-- **Sticky CTA bar** on mobile detail pages
+**v2 is a fresh redesign — do NOT copy v1.** See `docs/design-system.md` for direction.
+
+Key rules:
+- Modern, premium, warm. Editorial layout. Photography-first.
+- Light-first or proper light/dark toggle. No forced dark mode.
+- Glassmorphism removed or minimal. Content should breathe.
+- Four-state handling on every data view: loading (skeletons), empty, error, success
+- Responsive: 1→2→3/4 col grids
+- Mobile sticky CTA bar on detail pages
+- All colors/spacing/typography from Tailwind tokens, no magic values
 
 ## DB Schema
 
@@ -100,22 +103,22 @@ Full schema with column types, relationships, and indexes in `docs/db-schema.md`
 
 ## v1 Lessons (do NOT repeat)
 
-1. `useAuth().user` is the email string, not an object. Use `user || ''`.
-2. TypeORM `enum` type doesn't work with SQLite → use `simple-enum` in entities. (Irrelevant in v2 — Postgres handles enums natively.)
-3. MercadoPago sandbox: cardholder name must be `APRO` for approved payment.
-4. Never pass bcrypt hashes through shell — use Python script or Supabase Auth directly.
-5. CORS only allows production domain, not Vercel preview URLs.
-6. Checkout page is orphaned in v1 — catas and cursos go directly to MercadoPago, not through `/checkout`.
-7. Breadcrumb `max-w` must match content container or left edges misalign.
-8. Build warning: `tsc --noEmit` passes unused vars that `tsc -b` catches → always verify with `npm run build` before pushing.
+1. `useAuth().user` is email string, not object. Use `user || ''`.
+2. DB-first deletion: delete from DB, refetch, never filter frontend.
+3. MercadoPago sandbox: cardholder `APRO` for approved payment.
+4. Breadcrumb eliminated from all pages — do NOT add breadcrumbs.
+5. Checkout page is orphaned — catas/cursos go directly to MercadoPago, not through /checkout.
+6. CORS only allows production domain, not Vercel preview URLs.
+7. Always verify build with `npm run build` before push.
+8. `tsc --noEmit` is unreliable — always use `npm run build` for build verification.
 
 ## Workflow
 
 1. Read `docs/user-stories.md` for the full feature spec
 2. Read `docs/db-schema.md` for the DB design
-3. Read `docs/design-system.md` for ALL visual design — colors, components, page layouts, CSS snippets. **Every component has exact CSS here — use it directly.**
+3. Read `docs/design-system.md` for design *direction* and principles — then design fresh
 4. Start with Supabase: create schema migrations, set up auth
-5. Build frontend page by page, priority order, matching the design system exactly
+5. Build frontend page by page, priority order
 6. Each page: connect to Supabase via MCP, add loading/empty/error states
 7. Add MercadoPago integration last
 8. Deploy to Vercel via MCP
