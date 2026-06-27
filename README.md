@@ -1,103 +1,120 @@
-# Lo de Granados v2 — MCP-Based Rebuild
+# Lo de Granados v2 — MCP Rebuild 🍷
 
-Winery boutique web app rebuilt from scratch using MCPs (Model Context Protocol) + Claude Code.
+Winery boutique web app (Mendoza, Argentina). Rebuilt from scratch using **Claude Code + MCPs** (Model Context Protocol).
+
+- **v1 (running):** https://lodegranado.vercel.app
+- **v1 API:** https://api.34.239.137.66.nip.io
+- **v1 Stack:** React + NestJS + SQLite + MercadoPago
+- **v2 Stack:** React + Supabase + MercadoPago + Vercel, all via MCPs
+
+---
+
+## Quick Start (Local Machine)
+
+### 1. Clone
+
+```bash
+git clone https://github.com/lauta-rial/lodegranados-v2.git
+cd lodegranados-v2
+```
+
+### 2. Set up MCP credentials
+
+```bash
+cp .mcp.example.json .mcp.json
+# Edit .mcp.json with your real tokens
+```
+
+### 3. Set up services
+
+| # | Service | Action |
+|---|---------|--------|
+| 1 | **Supabase** | Go to [supabase.com](https://supabase.com) → Create project → Copy Project ID + Access Token |
+| 2 | **MercadoPago** | Get production access token from [MercadoPago Dashboard](https://www.mercadopago.com.ar/developers/panel) |
+| 3 | **Vercel** | Get token from [Vercel Dashboard → Settings → Tokens](https://vercel.com/account/tokens) |
+| 4 | **GitHub** | Use your existing token or create one at [GitHub → Settings → Tokens](https://github.com/settings/tokens) |
+
+### 4. Launch Claude Code
+
+```bash
+claude
+```
+
+Claude Code auto-reads `CLAUDE.md` and `.mcp.json`. It will have access to all MCP tools immediately.
+
+### 5. First tasks (tell Claude)
+
+```
+1. Create the Supabase DB schema from docs/db-schema.md
+2. Set up Supabase Auth (email/password + Google OAuth)
+3. Scaffold the React + Vite + Tailwind frontend
+4. Deploy to Vercel
+```
+
+---
+
+## Project Files
+
+| File | Purpose |
+|------|---------|
+| `CLAUDE.md` | Main instruction file — read by Claude Code on startup |
+| `.mcp.json` | MCP server config (your tokens) — **git-ignored** |
+| `.mcp.example.json` | Template for `.mcp.json` |
+| `docs/db-schema.md` | Full database design (14 tables, RLS policies) |
+| `docs/user-stories.md` | All features with acceptance criteria (P0/P1/P2) |
+
+---
 
 ## Stack
 
-| Capa | Tecnología | MCP |
-|---|---|---|
-| Dev | Claude Code | — |
-| Frontend | React 19 + Vite + Tailwind v4 | Vercel MCP |
-| Backend / DB | Supabase (Postgres + Auth + Storage) | Supabase MCP |
-| Pagos | MercadoPago | MercadoPago MCP |
-| Repo | GitHub | GitHub MCP |
-| Email | Resend | — |
+| Layer | v1 | → v2 |
+|-------|-----|------|
+| Frontend | React 19 + Vite + Tailwind v4 | → Same, via Vercel MCP |
+| Backend/DB | NestJS + TypeORM + SQLite | → **Supabase Postgres** + Auth + Storage |
+| Auth | Custom JWT + Google OAuth | → **Supabase Auth** |
+| Payments | MercadoPago API | → **MercadoPago MCP** |
+| Email | Resend | → Resend (keep) |
+| Deploy | Docker + scp + Vercel CLI | → **Vercel MCP** |
+| Dev | Manual + Swarm | → **Claude Code** |
 
-## MCP Configuration
+---
 
-MCPs are configured **per-project** in `.mcp.json` at the project root. Claude Code reads this automatically.
+## Pages
 
-### `.mcp.json` template
+| Page | Priority | URL |
+|------|----------|-----|
+| Landing | P0 | `/` |
+| Club DeVinos Plans | P0 | `/club` |
+| Plan Detail | P0 | `/club/:plan` |
+| Catas Listing | P0 | `/catas` |
+| Cata Detail | P0 | `/catas/:id` |
+| Cursos Listing | P0 | `/cursos` |
+| Curso Detail | P0 | `/cursos/:id` |
+| Login / Register | P0 | `/login`, `/register` |
+| Forgot/Reset Password | P0 | `/forgot-password`, `/reset-password` |
+| Admin Panel | P0 | `/admin/*` |
+| Empresas | P1 | `/empresas` |
+| FAQ | P1 | `/faq` |
+| Checkout | P1 | `/checkout` |
 
-```json
-{
-  "mcpServers": {
-    "supabase": {
-      "command": "npx",
-      "args": ["-y", "@supabase/mcp-server-supabase"],
-      "env": {
-        "SUPABASE_ACCESS_TOKEN": "<your-access-token>",
-        "SUPABASE_PROJECT_ID": "<your-project-id>"
-      }
-    },
-    "mercadopago": {
-      "command": "npx",
-      "args": ["-y", "@mercadopago/mcp-server"],
-      "env": {
-        "MERCADOPAGO_ACCESS_TOKEN": "<your-access-token>"
-      }
-    },
-    "vercel": {
-      "command": "npx",
-      "args": ["-y", "@vercel/mcp-server"],
-      "env": {
-        "VERCEL_TOKEN": "<your-vercel-token>"
-      }
-    },
-    "github": {
-      "command": "npx",
-      "args": ["-y", "@anthropic/mcp-server-github"],
-      "env": {
-        "GITHUB_TOKEN": "<your-github-token>"
-      }
-    }
-  }
-}
-```
+---
 
-### Setup Steps (Local)
+## Design
 
-1. Clone this repo:
-   ```bash
-   git clone https://github.com/lauta-rial/lodegranados-v2.git
-   cd lodegranados-v2
-   ```
+- Glass panels with dark gradient overlays
+- Warm palette: wine reds, golds, dark greens
+- Tailwind v4 with custom theme
+- Responsive: 1→2→4 col grids
+- Skeleton loading states everywhere
+- Mobile sticky CTA bar on detail pages
+- Staggered fade-in animations
 
-2. Create `.mcp.json` with your credentials (use the template above)
+## v1 Lessons (do NOT repeat in v2)
 
-3. Start Claude Code:
-   ```bash
-   claude
-   ```
-
-4. Claude Code will auto-load the MCP servers from `.mcp.json`
-
-### Services to set up
-
-| Service | Action |
-|---|---|
-| **Supabase** | Create project → get project ID + access token |
-| **MercadoPago** | Get production access token |
-| **Vercel** | Get API token from dashboard |
-| **GitHub** | Use your existing token or create a fine-grained one |
-
-## Project Structure (planned)
-
-```
-lodegranados-v2/
-├── .mcp.json              # MCP servers config (git-ignored)
-├── frontend/              # React + Vite + Tailwind
-│   ├── src/
-│   └── ...
-├── docs/                  # User stories, DB schema, flow diagrams
-├── supabase/
-│   └── migrations/        # DB migrations
-└── README.md
-```
-
-## v1 Reference
-
-- Production: https://lodegranado.vercel.app
-- API: https://api.34.239.137.66.nip.io
-- Old repo: `lauta-rial/lodegranados-fe`
-- Old DB: SQLite 14 tables (to migrate to Supabase Postgres)
+1. `useAuth().user` is email string, not object
+2. DB-first deletion: delete from DB, refetch, never filter frontend
+3. MercadoPago sandbox: cardholder `APRO` for approved payment
+4. Breadcrumb eliminated — do NOT add
+5. Checkout page is orphaned — catas/cursos go directly to MercadoPago
+6. CORS only allows production domain
+7. Always verify build with `npm run build` before push

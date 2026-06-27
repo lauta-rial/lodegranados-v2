@@ -1,0 +1,33 @@
+{
+  "mcpServers": {
+    "supabase": {
+      "command": "npx",
+      "args": ["-y", "@supabase/mcp-server-supabase"],
+      "env": {
+        "SUPABASE_ACCESS_TOKEN": "sbp_xxxxxxxxxxxxxxxxxxxx",
+        "SUPABASE_PROJECT_ID": "xxxxxxxxxxxxxxxxxxxx"
+      }
+    },
+    "mercadopago": {
+      "command": "npx",
+      "args": ["-y", "@mercadopago/mcp-server-mercadopago"],
+      "env": {
+        "MERCADOPAGO_ACCESS_TOKEN": "APP_USR-xxxxxxxxxxxxxxxxxxxx-xxxxxxxxxxxx"
+      }
+    },
+    "vercel": {
+      "command": "npx",
+      "args": ["-y", "@vercel/mcp-server-vercel"],
+      "env": {
+        "VERCEL_TOKEN": "xxxxxxxxxxxxxxxxxxxx"
+      }
+    },
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@anthropic/mcp-server-github"],
+      "env": {
+        "GITHUB_TOKEN": "ghp_xxxxxxxxxxxxxxxxxxxx"
+      }
+    }
+  }
+}
