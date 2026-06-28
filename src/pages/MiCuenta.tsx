@@ -264,7 +264,7 @@ function ReservationsSection({ userId }: { userId: string }) {
       ) : (
         <div className="space-y-3">
           {data.map((r) => (
-            <div key={r.id} className="flex items-center justify-between rounded-2xl border border-[var(--color-parchment)] bg-white p-4">
+            <Link key={r.id} to={`/catas/${r.event_id}`} className="flex items-center justify-between rounded-2xl border border-[var(--color-parchment)] bg-white p-4 hover:border-[var(--color-wine)]/30 hover:shadow-sm transition-all">
               <div>
                 <p className="font-medium text-[var(--color-dark)]">{r.event_title}</p>
                 <p className="mt-0.5 text-sm text-[var(--color-muted)] capitalize">
@@ -274,7 +274,7 @@ function ReservationsSection({ userId }: { userId: string }) {
                 {r.event_location && <p className="text-xs text-[var(--color-muted)]">{r.event_location}</p>}
               </div>
               <AttendanceBadge attended={r.attended} />
-            </div>
+            </Link>
           ))}
         </div>
       )}
