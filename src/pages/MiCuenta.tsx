@@ -316,7 +316,7 @@ function EnrollmentsSection({ userId }: { userId: string }) {
       ) : (
         <div className="space-y-3">
           {data.map((e) => (
-            <div key={e.id} className="flex items-center justify-between rounded-2xl border border-[var(--color-parchment)] bg-white p-4">
+            <Link key={e.id} to={`/cursos/${e.course_id}`} className="flex items-center justify-between rounded-2xl border border-[var(--color-parchment)] bg-white p-4 hover:border-[var(--color-wine)]/30 hover:shadow-sm transition-all">
               <div>
                 <p className="font-medium text-[var(--color-dark)]">{e.course_title}</p>
                 <p className="mt-0.5 text-sm text-[var(--color-muted)]">
@@ -325,7 +325,7 @@ function EnrollmentsSection({ userId }: { userId: string }) {
                 </p>
               </div>
               <StatusBadge status={e.status} />
-            </div>
+            </Link>
           ))}
         </div>
       )}

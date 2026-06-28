@@ -80,7 +80,11 @@ export function PagoExitoso() {
         ¡Pago aprobado!
       </h1>
       <p className="mt-4 text-[var(--color-dark-muted)]">
-        Tu reserva fue confirmada. Vas a recibir un email con todos los detalles.
+        {type === 'course'
+          ? 'Tu inscripción fue confirmada. Vas a recibir un email con todos los detalles.'
+          : type === 'plan'
+            ? 'Tu suscripción al Club fue activada. Vas a recibir un email de bienvenida.'
+            : 'Tu reserva fue confirmada. Vas a recibir un email con todos los detalles.'}
       </p>
 
       <div className="mt-10 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
