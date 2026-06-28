@@ -1,0 +1,363 @@
+import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { CalendarDays, BookOpen, Wine, User, Save } from 'lucide-react'
+import { useAuth } from '@/context/AuthContext'
+import { supabase } from '@/lib/supabase'
+import { Skeleton } from '@/components/ui/Skeleton'
+import { formatDate, formatPrice } from '@/lib/utils'
+import { Link } from 'react-router-dom'
+
+const field =
+  'w-full rounded-lg border border-[var(--color-parchment)] bg-white px-3 py-2.5 text-sm text-[var(--color-dark)] placeholder-[var(--color-muted)] focus:border-[var(--color-wine)] focus:outline-none focus:ring-1 focus:ring-[var(--color-wine)] transition-colors disabled:bg-[var(--color-cream)] disabled:text-[var(--color-muted)] disabled:cursor-not-allowed'
+
+export function MiCuenta() {
+  const { user } = useAuth()
+
+  if (!user) return null
+
+  const avatarUrl = user.user_metadata?.avatar_url as string | undefined
+  const displayName =
+    user.user_metadata?.full_name ??
+    user.user_metadata?.name ??
+    user.email?.split('@')[0] ??
+    'Usuario'
+
+  return (
+    <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6 lg:px-8">
+      {/* Profile header */}
+      <div className="flex items-center gap-5">
+        {avatarUrl ? (
+          <img
+            src={avatarUrl}
+            alt=""
+            className="h-16 w-16 rounded-full object-cover ring-2 ring-[var(--color-parchment)]"
+          />
+        ) : (
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[var(--color-wine)]/10">
+            <User size={28} className="text-[var(--color-wine)]" />
+          </div>
+        )}
+        <div>
+          <h1 className="font-display text-3xl font-light text-[var(--color-dark)]">{displayName}</h1>
+          <p className="mt-0.5 text-sm text-[var(--color-muted)]">{user.email}</p>
+        </div>
+      </div>
+
+      <div className="mt-10 space-y-10">
+        <ProfileForm user={user} />
+        <SubscriptionSection userId={user.id} />
+        <ReservationsSection userId={user.id} />
+        <EnrollmentsSection userId={user.id} />
+      </div>
+    </div>
+  )
+}
+
+function ProfileForm({ user }: { user: NonNullable<ReturnType<typeof useAuth>['user']> }) {
+  const meta = user.user_metadata ?? {}
+  const [form, setForm] = useState({
+    first_name: (meta.first_name as string) ?? (meta.full_name as string)?.split(' ')[0] ?? '',
+    last_name: (meta.last_name as string) ?? (meta.full_name as string)?.split(' ').slice(1).join(' ') ?? '',
+    phone: (meta.phone as string) ?? '',
+    address: (meta.address as string) ?? '',
+  })
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [error, setError] = useState('')
+
+  function set(key: keyof typeof form) {
+    return (e: React.ChangeEvent<HTMLInputElement>) => {
+      setForm((f) => ({ ...f, [key]: e.target.value }))
+      setSaved(false)
+    }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setSaving(true)
+    setError('')
+    const full_name = `${form.first_name} ${form.last_name}`.trim()
+    const { error: err } = await supabase.auth.updateUser({
+      data: { ...form, full_name },
+    })
+    setSaving(false)
+    if (err) {
+      setError('No se pudo guardar. Intentá de nuevo.')
+    } else {
+      setSaved(true)
+    }
+  }
+
+  return (
+    <section>
+      <div className="flex items-center gap-2 mb-5">
+        <User size={16} className="text-[var(--color-wine)]" />
+        <h2 className="font-display text-xl text-[var(--color-dark)]">Mis datos</h2>
+      </div>
+
+      <form
+        onSubmit={handleSubmit}
+        className="rounded-2xl border border-[var(--color-parchment)] bg-white p-6 space-y-4"
+      >
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-[var(--color-muted)]">
+              Nombre
+            </label>
+            <input className={field} value={form.first_name} onChange={set('first_name')} placeholder="Juan" />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-[var(--color-muted)]">
+              Apellido
+            </label>
+            <input className={field} value={form.last_name} onChange={set('last_name')} placeholder="García" />
+          </div>
+        </div>
+
+        <div>
+          <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-[var(--color-muted)]">
+            Email
+          </label>
+          <input className={field} value={user.email ?? ''} disabled />
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-[var(--color-muted)]">
+              Teléfono
+            </label>
+            <input
+              className={field}
+              value={form.phone}
+              onChange={set('phone')}
+              placeholder="+54 9 261 000 0000"
+              type="tel"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-[var(--color-muted)]">
+              Dirección
+            </label>
+            <input
+              className={field}
+              value={form.address}
+              onChange={set('address')}
+              placeholder="Av. San Martín 1234, Mendoza"
+            />
+          </div>
+        </div>
+
+        {error && <p className="text-sm text-red-600">{error}</p>}
+
+        <div className="flex items-center justify-between pt-1">
+          {saved && <p className="text-sm text-emerald-600">¡Datos guardados!</p>}
+          <button
+            type="submit"
+            disabled={saving}
+            className="ml-auto flex items-center gap-2 rounded-full bg-[var(--color-wine)] px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-wine-dark)] disabled:opacity-60"
+          >
+            <Save size={14} />
+            {saving ? 'Guardando…' : 'Guardar cambios'}
+          </button>
+        </div>
+      </form>
+    </section>
+  )
+}
+
+function SubscriptionSection({ userId }: { userId: string }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['my-subscription', userId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('subscriptions')
+        .select('*, plans(name, emoji, price)')
+        .eq('user_id', userId)
+        .eq('status', 'active')
+        .maybeSingle()
+      if (error) throw error
+      return data
+    },
+  })
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const plan = (data as any)?.plans
+
+  return (
+    <section>
+      <div className="flex items-center gap-2 mb-4">
+        <Wine size={16} className="text-[var(--color-wine)]" />
+        <h2 className="font-display text-xl text-[var(--color-dark)]">Club DeVinos</h2>
+      </div>
+
+      {isLoading ? (
+        <Skeleton className="h-24 w-full rounded-2xl" />
+      ) : data ? (
+        <div className="rounded-2xl border border-[var(--color-wine)]/20 bg-[var(--color-wine)]/5 p-5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              {plan?.emoji && <span className="text-2xl">{plan.emoji}</span>}
+              <div>
+                <p className="font-semibold text-[var(--color-dark)]">{plan?.name ?? 'Plan activo'}</p>
+                <p className="text-sm text-[var(--color-muted)]">
+                  {plan?.price ? `${formatPrice(plan.price)}/mes` : ''} · desde {data.start_date ?? '—'}
+                </p>
+              </div>
+            </div>
+            <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
+              Activa
+            </span>
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-[var(--color-parchment)] bg-[var(--color-cream-dark)] p-6 text-center">
+          <p className="text-sm text-[var(--color-dark-muted)]">No tenés ninguna suscripción activa.</p>
+          <Link
+            to="/club"
+            className="mt-3 inline-flex h-9 items-center rounded-full bg-[var(--color-wine)] px-5 text-sm font-medium text-white hover:bg-[var(--color-wine-dark)] transition-colors"
+          >
+            Ver planes del Club
+          </Link>
+        </div>
+      )}
+    </section>
+  )
+}
+
+function ReservationsSection({ userId }: { userId: string }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['my-registrations', userId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('registrations')
+        .select('*, events(title, date, time, location)')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+      if (error) throw error
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (data ?? []).map((r: any) => ({
+        ...r,
+        event_title: r.events?.title ?? '—',
+        event_date: r.events?.date,
+        event_time: r.events?.time,
+        event_location: r.events?.location,
+      }))
+    },
+  })
+
+  return (
+    <section>
+      <div className="flex items-center gap-2 mb-4">
+        <CalendarDays size={16} className="text-[var(--color-wine)]" />
+        <h2 className="font-display text-xl text-[var(--color-dark)]">Mis catas</h2>
+      </div>
+
+      {isLoading ? (
+        <div className="space-y-3">{[...Array(2)].map((_, i) => <Skeleton key={i} className="h-20 w-full rounded-2xl" />)}</div>
+      ) : !data?.length ? (
+        <EmptyState label="No tenés reservas todavía." link="/catas" linkLabel="Ver próximas catas" />
+      ) : (
+        <div className="space-y-3">
+          {data.map((r) => (
+            <div key={r.id} className="flex items-center justify-between rounded-2xl border border-[var(--color-parchment)] bg-white p-4">
+              <div>
+                <p className="font-medium text-[var(--color-dark)]">{r.event_title}</p>
+                <p className="mt-0.5 text-sm text-[var(--color-muted)] capitalize">
+                  {r.event_date ? formatDate(r.event_date) : '—'}
+                  {r.event_time ? ` · ${r.event_time.slice(0, 5)} hs` : ''}
+                </p>
+                {r.event_location && <p className="text-xs text-[var(--color-muted)]">{r.event_location}</p>}
+              </div>
+              <AttendanceBadge attended={r.attended} />
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function EnrollmentsSection({ userId }: { userId: string }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['my-enrollments', userId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('enrollments')
+        .select('*, courses(title, start_date, instructor_name)')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+      if (error) throw error
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (data ?? []).map((e: any) => ({
+        ...e,
+        course_title: e.courses?.title ?? '—',
+        course_date: e.courses?.start_date,
+        instructor: e.courses?.instructor_name,
+      }))
+    },
+  })
+
+  return (
+    <section>
+      <div className="flex items-center gap-2 mb-4">
+        <BookOpen size={16} className="text-[var(--color-wine)]" />
+        <h2 className="font-display text-xl text-[var(--color-dark)]">Mis cursos</h2>
+      </div>
+
+      {isLoading ? (
+        <div className="space-y-3">{[...Array(2)].map((_, i) => <Skeleton key={i} className="h-20 w-full rounded-2xl" />)}</div>
+      ) : !data?.length ? (
+        <EmptyState label="No estás inscripto en ningún curso." link="/cursos" linkLabel="Ver cursos disponibles" />
+      ) : (
+        <div className="space-y-3">
+          {data.map((e) => (
+            <div key={e.id} className="flex items-center justify-between rounded-2xl border border-[var(--color-parchment)] bg-white p-4">
+              <div>
+                <p className="font-medium text-[var(--color-dark)]">{e.course_title}</p>
+                <p className="mt-0.5 text-sm text-[var(--color-muted)]">
+                  {e.instructor ? `con ${e.instructor}` : ''}
+                  {e.course_date ? ` · inicio ${formatDate(e.course_date)}` : ''}
+                </p>
+              </div>
+              <StatusBadge status={e.status} />
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function AttendanceBadge({ attended }: { attended: boolean | null }) {
+  if (attended === null)
+    return <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">Pendiente</span>
+  return attended ? (
+    <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">Asistí</span>
+  ) : (
+    <span className="rounded-full bg-[var(--color-cream-dark)] px-3 py-1 text-xs font-medium text-[var(--color-muted)]">Confirmada</span>
+  )
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const map: Record<string, { label: string; cls: string }> = {
+    enrolled:  { label: 'Inscripto',  cls: 'bg-blue-50 text-blue-700' },
+    completed: { label: 'Completado', cls: 'bg-emerald-50 text-emerald-700' },
+    dropped:   { label: 'Abandonado', cls: 'bg-red-50 text-red-700' },
+  }
+  const s = map[status] ?? { label: status, cls: 'bg-[var(--color-cream-dark)] text-[var(--color-muted)]' }
+  return <span className={`rounded-full px-3 py-1 text-xs font-medium ${s.cls}`}>{s.label}</span>
+}
+
+function EmptyState({ label, link, linkLabel }: { label: string; link: string; linkLabel: string }) {
+  return (
+    <div className="rounded-2xl border border-[var(--color-parchment)] bg-[var(--color-cream-dark)] p-6 text-center">
+      <p className="text-sm text-[var(--color-dark-muted)]">{label}</p>
+      <Link
+        to={link}
+        className="mt-3 inline-flex h-9 items-center rounded-full bg-[var(--color-wine)] px-5 text-sm font-medium text-white hover:bg-[var(--color-wine-dark)] transition-colors"
+      >
+        {linkLabel}
+      </Link>
+    </div>
+  )
+}
