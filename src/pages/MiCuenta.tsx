@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { CalendarDays, BookOpen, Wine, User, Save } from 'lucide-react'
+import { CalendarDays, BookOpen, Wine, User, Check, Loader2 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { supabase } from '@/lib/supabase'
 import { Skeleton } from '@/components/ui/Skeleton'
@@ -61,56 +61,73 @@ function ProfileForm({ user }: { user: NonNullable<ReturnType<typeof useAuth>['u
     phone: (meta.phone as string) ?? '',
     address: (meta.address as string) ?? '',
   })
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [error, setError] = useState('')
+  type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
+  const [status, setStatus] = useState<SaveStatus>('idle')
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   function set(key: keyof typeof form) {
     return (e: React.ChangeEvent<HTMLInputElement>) => {
       setForm((f) => ({ ...f, [key]: e.target.value }))
-      setSaved(false)
     }
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setSaving(true)
-    setError('')
-    const full_name = `${form.first_name} ${form.last_name}`.trim()
-    const { error: err } = await supabase.auth.updateUser({
-      data: { ...form, full_name },
-    })
-    setSaving(false)
-    if (err) {
-      setError('No se pudo guardar. Intentá de nuevo.')
+  async function save(updated = form) {
+    if (timerRef.current) clearTimeout(timerRef.current)
+    setStatus('saving')
+    const full_name = `${updated.first_name} ${updated.last_name}`.trim()
+    const { error } = await supabase.auth.updateUser({ data: { ...updated, full_name } })
+    if (error) {
+      setStatus('error')
     } else {
-      setSaved(true)
+      setStatus('saved')
+      timerRef.current = setTimeout(() => setStatus('idle'), 2000)
     }
   }
+
+  function onBlur(key: keyof typeof form) {
+    return (e: React.FocusEvent<HTMLInputElement>) => {
+      const updated = { ...form, [key]: e.target.value }
+      setForm(updated)
+      save(updated)
+    }
+  }
+
+  const statusEl =
+    status === 'saving' ? (
+      <span className="flex items-center gap-1 text-xs text-[var(--color-muted)]">
+        <Loader2 size={12} className="animate-spin" /> Guardando…
+      </span>
+    ) : status === 'saved' ? (
+      <span className="flex items-center gap-1 text-xs text-emerald-600">
+        <Check size={12} /> Guardado
+      </span>
+    ) : status === 'error' ? (
+      <span className="text-xs text-red-500">Error al guardar</span>
+    ) : null
 
   return (
     <section>
-      <div className="flex items-center gap-2 mb-5">
-        <User size={16} className="text-[var(--color-wine)]" />
-        <h2 className="font-display text-xl text-[var(--color-dark)]">Mis datos</h2>
+      <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center gap-2">
+          <User size={16} className="text-[var(--color-wine)]" />
+          <h2 className="font-display text-xl text-[var(--color-dark)]">Mis datos</h2>
+        </div>
+        <div className="h-5">{statusEl}</div>
       </div>
 
-      <form
-        onSubmit={handleSubmit}
-        className="rounded-2xl border border-[var(--color-parchment)] bg-white p-6 space-y-4"
-      >
+      <div className="rounded-2xl border border-[var(--color-parchment)] bg-white p-6 space-y-4">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-[var(--color-muted)]">
               Nombre
             </label>
-            <input className={field} value={form.first_name} onChange={set('first_name')} placeholder="Juan" />
+            <input className={field} value={form.first_name} onChange={set('first_name')} onBlur={onBlur('first_name')} placeholder="Juan" />
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-[var(--color-muted)]">
               Apellido
             </label>
-            <input className={field} value={form.last_name} onChange={set('last_name')} placeholder="García" />
+            <input className={field} value={form.last_name} onChange={set('last_name')} onBlur={onBlur('last_name')} placeholder="García" />
           </div>
         </div>
 
@@ -130,6 +147,7 @@ function ProfileForm({ user }: { user: NonNullable<ReturnType<typeof useAuth>['u
               className={field}
               value={form.phone}
               onChange={set('phone')}
+              onBlur={onBlur('phone')}
               placeholder="+54 9 261 000 0000"
               type="tel"
             />
@@ -142,25 +160,12 @@ function ProfileForm({ user }: { user: NonNullable<ReturnType<typeof useAuth>['u
               className={field}
               value={form.address}
               onChange={set('address')}
+              onBlur={onBlur('address')}
               placeholder="Av. San Martín 1234, Mendoza"
             />
           </div>
         </div>
-
-        {error && <p className="text-sm text-red-600">{error}</p>}
-
-        <div className="flex items-center justify-between pt-1">
-          {saved && <p className="text-sm text-emerald-600">¡Datos guardados!</p>}
-          <button
-            type="submit"
-            disabled={saving}
-            className="ml-auto flex items-center gap-2 rounded-full bg-[var(--color-wine)] px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-wine-dark)] disabled:opacity-60"
-          >
-            <Save size={14} />
-            {saving ? 'Guardando…' : 'Guardar cambios'}
-          </button>
-        </div>
-      </form>
+      </div>
     </section>
   )
 }
