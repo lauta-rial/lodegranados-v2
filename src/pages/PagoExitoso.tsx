@@ -36,32 +36,15 @@ export function PagoExitoso() {
         payerEmail: string
       }
 
-      // Insert registration/enrollment in DB
-      if (type === 'event') {
-        supabase.from('registrations').insert({
-          event_id: ref,
-          user_id: user?.id ?? null,
-          name: payerName || null,
-          email: payerEmail || null,
-          spots: 1,
-          payment_id: paymentId || null,
-        })
-      } else if (type === 'course') {
-        supabase.from('enrollments').insert({
-          course_id: ref,
-          user_id: user?.id ?? null,
-          name: payerName || null,
-          email: payerEmail || null,
-          payment_id: paymentId || null,
-          status: 'enrolled',
-        })
-      }
-
-      if (!payerEmail) return
-
+      // DB insert + email handled server-side by the edge function (service role bypasses RLS)
       supabase.functions.invoke('send-email', {
         body: {
           type: emailType[type] ?? 'reservation',
+          ref,
+          paymentId,
+          userId: user?.id ?? null,
+          payerName,
+          payerEmail,
           to: payerEmail,
           name: payerName || payerEmail,
           data: {
