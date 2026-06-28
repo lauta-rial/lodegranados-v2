@@ -40,6 +40,7 @@ export function PagoExitoso() {
       supabase.functions.invoke('send-email', {
         body: {
           type: emailType[type] ?? 'reservation',
+          purchaseType: type,   // 'event' | 'course' | 'plan' — used for DB insert
           ref,
           paymentId,
           userId: user?.id ?? null,
