@@ -17,11 +17,18 @@ export function PagoExitoso() {
   const type = params.get('type') ?? ''
   const ref = params.get('ref') ?? ''
   const paymentId = params.get('payment_id') ?? ''
+  const preapprovalId = params.get('preapproval_id') ?? ''
   const status = params.get('status') ?? ''
   const processed = useRef(false)
 
   useEffect(() => {
-    if (processed.current || status !== 'approved' || !ref || authLoading) return
+    if (processed.current || !ref || authLoading) return
+    // Subscriptions: MP redirects with preapproval_id (no status param)
+    // One-time payments: require status=approved
+    const isSubscription = type === 'plan'
+    if (!isSubscription && status !== 'approved') return
+    if (isSubscription && !preapprovalId) return
+
     const raw = sessionStorage.getItem('mp_checkout')
     if (!raw) return
     sessionStorage.removeItem('mp_checkout')
@@ -42,7 +49,7 @@ export function PagoExitoso() {
           type: emailType[type] ?? 'reservation',
           purchaseType: type,   // 'event' | 'course' | 'plan' — used for DB insert
           ref,
-          paymentId,
+          paymentId: isSubscription ? preapprovalId : paymentId,
           userId: user?.id ?? null,
           payerName,
           payerEmail,
@@ -51,13 +58,14 @@ export function PagoExitoso() {
           data: {
             title,
             price: price ? formatPrice(price) : undefined,
+            priceAmount: price ?? null,
           },
         },
       })
     } catch {
       // silent — both DB write and email are best-effort
     }
-  }, [type, ref, paymentId, status, user, authLoading])
+  }, [type, ref, paymentId, preapprovalId, status, user, authLoading])
 
   const backLink =
     type === 'event' ? '/catas' : type === 'course' ? '/cursos' : type === 'plan' ? '/club' : '/'

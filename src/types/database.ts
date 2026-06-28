@@ -247,6 +247,7 @@ export type Database = {
           features: Json | null
           highlighted: boolean | null
           id: string
+          mp_plan_id: string | null
           name: string
           price: number | null
           updated_at: string | null
@@ -260,6 +261,7 @@ export type Database = {
           features?: Json | null
           highlighted?: boolean | null
           id?: string
+          mp_plan_id?: string | null
           name: string
           price?: number | null
           updated_at?: string | null
@@ -273,6 +275,7 @@ export type Database = {
           features?: Json | null
           highlighted?: boolean | null
           id?: string
+          mp_plan_id?: string | null
           name?: string
           price?: number | null
           updated_at?: string | null

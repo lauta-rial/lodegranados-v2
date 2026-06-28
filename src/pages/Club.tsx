@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { Check, ArrowRight } from 'lucide-react'
 import { usePlans } from '@/hooks/usePlans'
 import { useAuth } from '@/context/AuthContext'
-import { useCheckout } from '@/hooks/useCheckout'
+import { useSubscription } from '@/hooks/useSubscription'
 import { CheckoutModal } from '@/components/CheckoutModal'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { formatPrice } from '@/lib/utils'
@@ -35,7 +35,7 @@ export function Club() {
         {error && <PlansError />}
         {!isLoading && !error && plans?.length === 0 && <PlansEmpty />}
         {!isLoading && !error && plans && plans.length > 0 && (
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mx-auto max-w-3xl grid grid-cols-1 gap-6 sm:grid-cols-2">
             {plans.map((plan) => (
               <PlanCard key={plan.id} plan={plan} />
             ))}
@@ -67,19 +67,21 @@ export function Club() {
 function PlanCard({ plan }: { plan: Plan }) {
   const features = Array.isArray(plan.features) ? (plan.features as string[]) : []
   const { user } = useAuth()
-  const { checkout, loading, error } = useCheckout()
+  const { subscribe, loading, error } = useSubscription()
   const [modalOpen, setModalOpen] = useState(false)
 
   function handleSuscribir() {
+    if (!plan.mp_plan_id) return
     if (user) {
-      checkout({ type: 'plan', id: plan.id, title: plan.name, price: plan.price ?? 0 })
+      subscribe({ planId: plan.id, mpPlanId: plan.mp_plan_id, planName: plan.name, price: plan.price ?? 0 })
     } else {
       setModalOpen(true)
     }
   }
 
   function handleModalConfirm(name: string, email: string) {
-    checkout({ type: 'plan', id: plan.id, title: plan.name, price: plan.price ?? 0, payerName: name, payerEmail: email })
+    if (!plan.mp_plan_id) return
+    subscribe({ planId: plan.id, mpPlanId: plan.mp_plan_id, planName: plan.name, price: plan.price ?? 0, payerName: name, payerEmail: email })
   }
 
   return (
@@ -165,7 +167,7 @@ function PlanCard({ plan }: { plan: Plan }) {
         <div className="mt-8 flex flex-col gap-2">
           <button
             onClick={handleSuscribir}
-            disabled={loading}
+            disabled={loading || !plan.mp_plan_id}
             className={cn(
               'h-11 w-full rounded-full text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60',
               plan.highlighted
