@@ -13,7 +13,7 @@ const emailType: Record<string, string> = {
 
 export function PagoExitoso() {
   const [params] = useSearchParams()
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const type = params.get('type') ?? ''
   const ref = params.get('ref') ?? ''
   const paymentId = params.get('payment_id') ?? ''
@@ -21,7 +21,7 @@ export function PagoExitoso() {
   const processed = useRef(false)
 
   useEffect(() => {
-    if (processed.current || status !== 'approved' || !ref) return
+    if (processed.current || status !== 'approved' || !ref || authLoading) return
     const raw = sessionStorage.getItem('mp_checkout')
     if (!raw) return
     sessionStorage.removeItem('mp_checkout')
@@ -73,7 +73,7 @@ export function PagoExitoso() {
     } catch {
       // silent — both DB write and email are best-effort
     }
-  }, [type, ref, paymentId, status, user])
+  }, [type, ref, paymentId, status, user, authLoading])
 
   const backLink =
     type === 'event' ? '/catas' : type === 'course' ? '/cursos' : type === 'plan' ? '/club' : '/'
