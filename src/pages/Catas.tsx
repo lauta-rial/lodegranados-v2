@@ -1,13 +1,15 @@
 import { Link } from 'react-router-dom'
 import { CalendarDays, MapPin, Users, ArrowRight } from 'lucide-react'
 import { useEvents } from '@/hooks/useEvents'
+import { useBranch } from '@/context/BranchContext'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { Badge } from '@/components/ui/Badge'
 import { formatDate, formatPrice } from '@/lib/utils'
 import type { Event } from '@/types/database'
 
 export function Catas() {
-  const { data: events, isLoading, error } = useEvents()
+  const branch = useBranch()
+  const { data: events, isLoading, error } = useEvents(branch?.id)
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
@@ -19,7 +21,7 @@ export function Catas() {
           Catas de Vino
         </h1>
         <p className="mt-4 max-w-xl text-[var(--color-dark-muted)]">
-          Experiencias íntimas guiadas por nuestro sommelier. Conocé los mejores vinos de Mendoza en un ambiente único.
+          Experiencias íntimas guiadas por nuestro sommelier. Conocé los mejores vinos en un ambiente único.
         </p>
       </div>
 
@@ -29,7 +31,7 @@ export function Catas() {
       {!isLoading && !error && events && events.length > 0 && (
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {events.map((event) => (
-            <EventCard key={event.id} event={event} />
+            <EventCard key={event.id} event={event} branchSlug={branch?.slug ?? ''} />
           ))}
         </div>
       )}
@@ -37,13 +39,13 @@ export function Catas() {
   )
 }
 
-function EventCard({ event }: { event: Event }) {
+function EventCard({ event, branchSlug }: { event: Event; branchSlug: string }) {
   const spotsLeft = event.available_spots
   const soldOut = spotsLeft === 0
 
   return (
     <Link
-      to={`/catas/${event.id}`}
+      to={`/${branchSlug}/catas/${event.id}`}
       className="group flex flex-col overflow-hidden rounded-2xl border border-[var(--color-parchment)] bg-white transition-shadow hover:shadow-lg"
     >
       {/* Image placeholder */}

@@ -14,27 +14,39 @@ export type Database = {
     Tables: {
       branches: {
         Row: {
+          active: boolean | null
           address: string | null
+          city: string | null
           created_at: string | null
           id: string
+          instagram: string | null
           name: string
           phone: string | null
+          slug: string | null
           updated_at: string | null
         }
         Insert: {
+          active?: boolean | null
           address?: string | null
+          city?: string | null
           created_at?: string | null
           id?: string
+          instagram?: string | null
           name: string
           phone?: string | null
+          slug?: string | null
           updated_at?: string | null
         }
         Update: {
+          active?: boolean | null
           address?: string | null
+          city?: string | null
           created_at?: string | null
           id?: string
+          instagram?: string | null
           name?: string
           phone?: string | null
+          slug?: string | null
           updated_at?: string | null
         }
         Relationships: []

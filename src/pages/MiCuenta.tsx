@@ -198,22 +198,20 @@ function SubscriptionSection({ userId }: { userId: string }) {
       {isLoading ? (
         <Skeleton className="h-24 w-full rounded-2xl" />
       ) : data ? (
-        <div className="rounded-2xl border border-[var(--color-wine)]/20 bg-[var(--color-wine)]/5 p-5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              {plan?.emoji && <span className="text-2xl">{plan.emoji}</span>}
-              <div>
-                <p className="font-semibold text-[var(--color-dark)]">{plan?.name ?? 'Plan activo'}</p>
-                <p className="text-sm text-[var(--color-muted)]">
-                  {plan?.price ? `${formatPrice(plan.price)}/mes` : ''} · desde {data.start_date ?? '—'}
-                </p>
-              </div>
+        <Link to={`/club/${data.plan_id}`} className="flex items-center justify-between rounded-2xl border border-[var(--color-wine)]/20 bg-[var(--color-wine)]/5 p-5 hover:border-[var(--color-wine)]/40 hover:shadow-sm transition-all">
+          <div className="flex items-center gap-3">
+            {plan?.emoji && <span className="text-2xl">{plan.emoji}</span>}
+            <div>
+              <p className="font-semibold text-[var(--color-dark)]">{plan?.name ?? 'Plan activo'}</p>
+              <p className="text-sm text-[var(--color-muted)]">
+                {plan?.price ? `${formatPrice(plan.price)}/mes` : ''} · desde {data.start_date ?? '—'}
+              </p>
             </div>
-            <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
-              Activa
-            </span>
           </div>
-        </div>
+          <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
+            Activa
+          </span>
+        </Link>
       ) : (
         <div className="rounded-2xl border border-[var(--color-parchment)] bg-[var(--color-cream-dark)] p-6 text-center">
           <p className="text-sm text-[var(--color-dark-muted)]">No tenés ninguna suscripción activa.</p>

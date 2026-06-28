@@ -1,10 +1,12 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { AuthProvider } from '@/context/AuthContext'
 import { Layout } from '@/components/layout/Layout'
+import { BranchLayout } from '@/components/layout/BranchLayout'
 import { AdminLayout } from '@/components/admin/AdminLayout'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 
 import { Home } from '@/pages/Home'
+import { BranchHome } from '@/pages/BranchHome'
 import { Catas } from '@/pages/Catas'
 import { CataDetail } from '@/pages/CataDetail'
 import { Club } from '@/pages/Club'
@@ -32,17 +34,9 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          {/* Public site */}
+          {/* Global routes — no branch context */}
           <Route element={<Layout />}>
             <Route path="/" element={<Home />} />
-            <Route path="/catas" element={<Catas />} />
-            <Route path="/catas/:id" element={<CataDetail />} />
-            <Route path="/club" element={<Club />} />
-            <Route path="/club/:id" element={<ClubPlan />} />
-            <Route path="/cursos" element={<Cursos />} />
-            <Route path="/cursos/:id" element={<CursoDetail />} />
-            <Route path="/empresas" element={<Empresas />} />
-            <Route path="/faq" element={<Faq />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -51,6 +45,19 @@ export default function App() {
             <Route path="/pago-exitoso" element={<PagoExitoso />} />
             <Route path="/pago-fallido" element={<PagoFallido />} />
             <Route path="/pago-pendiente" element={<PagoPendiente />} />
+          </Route>
+
+          {/* Branch-specific routes — all content filtered by branch */}
+          <Route path="/:branchSlug" element={<BranchLayout />}>
+            <Route index element={<BranchHome />} />
+            <Route path="catas" element={<Catas />} />
+            <Route path="catas/:id" element={<CataDetail />} />
+            <Route path="cursos" element={<Cursos />} />
+            <Route path="cursos/:id" element={<CursoDetail />} />
+            <Route path="club" element={<Club />} />
+            <Route path="club/:id" element={<ClubPlan />} />
+            <Route path="empresas" element={<Empresas />} />
+            <Route path="faq" element={<Faq />} />
           </Route>
 
           {/* Admin panel */}

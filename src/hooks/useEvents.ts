@@ -2,15 +2,13 @@ import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import type { Event } from '@/types/database'
 
-export function useEvents() {
+export function useEvents(branchId?: string) {
   return useQuery<Event[]>({
-    queryKey: ['events'],
+    queryKey: ['events', branchId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('events')
-        .select('*')
-        .eq('active', true)
-        .order('date', { ascending: true })
+      let q = supabase.from('events').select('*').eq('active', true)
+      if (branchId) q = q.eq('branch_id', branchId)
+      const { data, error } = await q.order('date', { ascending: true })
       if (error) throw error
       return data
     },

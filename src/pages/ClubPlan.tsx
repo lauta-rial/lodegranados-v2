@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Check, ShieldCheck } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { useBranch } from '@/context/BranchContext'
 import { useAuth } from '@/context/AuthContext'
 import { useCheckout } from '@/hooks/useCheckout'
 import { CheckoutModal } from '@/components/CheckoutModal'
@@ -13,6 +14,7 @@ import type { Plan } from '@/types/database'
 
 export function ClubPlan() {
   const { id } = useParams<{ id: string }>()
+  const branch = useBranch()
   const { user } = useAuth()
   const { checkout, loading: checkoutLoading, error: checkoutError } = useCheckout()
   const [modalOpen, setModalOpen] = useState(false)
@@ -35,6 +37,7 @@ export function ClubPlan() {
   if (error || !plan) return <PlanError />
 
   const features = Array.isArray(plan.features) ? (plan.features as string[]) : []
+  const clubUrl = `/${branch?.slug ?? ''}/club`
 
   function handleSuscribir() {
     if (user) {
@@ -51,7 +54,7 @@ export function ClubPlan() {
   return (
     <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6 lg:px-8">
       <Link
-        to="/club"
+        to={clubUrl}
         className="mb-10 inline-flex items-center gap-2 text-sm text-[var(--color-muted)] hover:text-[var(--color-dark)] transition-colors"
       >
         <ArrowLeft size={14} /> Volver al Club
@@ -128,9 +131,7 @@ export function ClubPlan() {
               disabled={checkoutLoading}
               className={cn(
                 'mt-6 h-12 w-full rounded-full text-sm font-medium transition-colors',
-                plan.highlighted
-                  ? 'bg-[var(--color-wine)] text-white hover:bg-[var(--color-wine-dark)]'
-                  : 'bg-[var(--color-wine)] text-white hover:bg-[var(--color-wine-dark)]',
+                'bg-[var(--color-wine)] text-white hover:bg-[var(--color-wine-dark)]',
                 'disabled:cursor-not-allowed disabled:opacity-60',
               )}
             >
@@ -147,7 +148,7 @@ export function ClubPlan() {
             </div>
 
             <Link
-              to="/club"
+              to={clubUrl}
               className="mt-4 block text-center text-xs text-[var(--color-muted)] hover:text-[var(--color-dark)] transition-colors"
             >
               Ver todos los planes
@@ -205,10 +206,11 @@ function PlanLoading() {
 }
 
 function PlanError() {
+  const branch = useBranch()
   return (
     <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6 lg:px-8 text-center">
       <p className="font-display text-2xl text-[var(--color-dark)]">No encontramos este plan</p>
-      <Link to="/club" className="mt-4 inline-flex items-center gap-2 text-[var(--color-wine)]">
+      <Link to={`/${branch?.slug ?? ''}/club`} className="mt-4 inline-flex items-center gap-2 text-[var(--color-wine)]">
         <ArrowLeft size={14} /> Ver todos los planes
       </Link>
     </div>

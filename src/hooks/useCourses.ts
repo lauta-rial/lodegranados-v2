@@ -2,15 +2,13 @@ import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import type { Course } from '@/types/database'
 
-export function useCourses() {
+export function useCourses(branchId?: string) {
   return useQuery<Course[]>({
-    queryKey: ['courses'],
+    queryKey: ['courses', branchId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('courses')
-        .select('*')
-        .eq('active', true)
-        .order('start_date', { ascending: true })
+      let q = supabase.from('courses').select('*').eq('active', true)
+      if (branchId) q = q.eq('branch_id', branchId)
+      const { data, error } = await q.order('start_date', { ascending: true })
       if (error) throw error
       return data
     },

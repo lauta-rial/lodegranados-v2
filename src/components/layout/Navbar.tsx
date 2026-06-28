@@ -3,20 +3,28 @@ import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { Menu, X, ChevronDown, LayoutDashboard, LogOut, User } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/AuthContext'
-
-const links = [
-  { to: '/catas', label: 'Catas' },
-  { to: '/cursos', label: 'Cursos' },
-  { to: '/club', label: 'Club DeVinos' },
-  { to: '/empresas', label: 'Empresas' },
-]
+import { useBranch } from '@/context/BranchContext'
 
 export function Navbar() {
   const [open, setOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const { user, signOut } = useAuth()
+  const branch = useBranch()
   const navigate = useNavigate()
-  const isAdmin = user?.user_metadata?.role === 'admin'
+
+  const isAdmin = user?.user_metadata?.role === 'admin' || user?.user_metadata?.role === 'superadmin'
+  const displayName = user?.user_metadata?.full_name ?? user?.email?.split('@')[0] ?? 'Mi cuenta'
+  const avatarUrl = user?.user_metadata?.avatar_url as string | undefined
+
+  const prefix = branch ? `/${branch.slug}` : ''
+  const links = branch
+    ? [
+        { to: `${prefix}/catas`, label: 'Catas' },
+        { to: `${prefix}/cursos`, label: 'Cursos' },
+        { to: `${prefix}/club`, label: 'Club DeVinos' },
+        { to: `${prefix}/empresas`, label: 'Empresas' },
+      ]
+    : []
 
   async function handleSignOut() {
     await signOut()
@@ -24,34 +32,41 @@ export function Navbar() {
     navigate('/')
   }
 
-  const displayName = user?.user_metadata?.full_name ?? user?.email?.split('@')[0] ?? 'Mi cuenta'
-  const avatarUrl = user?.user_metadata?.avatar_url as string | undefined
-
   return (
     <header className="sticky top-0 z-50 border-b border-[var(--color-parchment)] bg-[var(--color-cream)]/95 backdrop-blur-sm">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        <Link to="/" className="font-display text-xl font-semibold tracking-wide text-[var(--color-dark)]">
-          Lo de Granados
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link to="/" className="font-display text-xl font-semibold tracking-wide text-[var(--color-dark)]">
+            Lo de Granados
+          </Link>
+          {branch && (
+            <>
+              <span className="text-[var(--color-parchment)]">/</span>
+              <span className="text-sm font-medium text-[var(--color-wine)]">{branch.name}</span>
+            </>
+          )}
+        </div>
 
-        <nav className="hidden items-center gap-8 md:flex">
-          {links.map(({ to, label }) => (
-            <NavLink
-              key={to}
-              to={to}
-              className={({ isActive }) =>
-                cn(
-                  'text-sm font-medium transition-colors',
-                  isActive
-                    ? 'text-[var(--color-wine)]'
-                    : 'text-[var(--color-dark-muted)] hover:text-[var(--color-dark)]',
-                )
-              }
-            >
-              {label}
-            </NavLink>
-          ))}
-        </nav>
+        {links.length > 0 && (
+          <nav className="hidden items-center gap-8 md:flex">
+            {links.map(({ to, label }) => (
+              <NavLink
+                key={to}
+                to={to}
+                className={({ isActive }) =>
+                  cn(
+                    'text-sm font-medium transition-colors',
+                    isActive
+                      ? 'text-[var(--color-wine)]'
+                      : 'text-[var(--color-dark-muted)] hover:text-[var(--color-dark)]',
+                  )
+                }
+              >
+                {label}
+              </NavLink>
+            ))}
+          </nav>
+        )}
 
         {/* Desktop right side */}
         <div className="hidden md:flex items-center gap-3">
@@ -112,12 +127,14 @@ export function Navbar() {
               >
                 Ingresar
               </Link>
-              <Link
-                to="/club"
-                className="rounded-full bg-[var(--color-wine)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-wine-dark)]"
-              >
-                Unirme al Club
-              </Link>
+              {branch && (
+                <Link
+                  to={`${prefix}/club`}
+                  className="rounded-full bg-[var(--color-wine)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-wine-dark)]"
+                >
+                  Unirme al Club
+                </Link>
+              )}
             </>
           )}
         </div>
@@ -150,7 +167,7 @@ export function Navbar() {
                 {label}
               </NavLink>
             ))}
-            <hr className="border-[var(--color-parchment)]" />
+            {links.length > 0 && <hr className="border-[var(--color-parchment)]" />}
             {user ? (
               <>
                 {isAdmin && (
@@ -158,6 +175,9 @@ export function Navbar() {
                     Panel admin
                   </Link>
                 )}
+                <Link to="/mi-cuenta" onClick={() => setOpen(false)} className="text-sm font-medium text-[var(--color-dark-muted)]">
+                  Mi cuenta
+                </Link>
                 <button
                   onClick={() => { setOpen(false); handleSignOut() }}
                   className="text-left text-sm font-medium text-red-600"
@@ -174,13 +194,15 @@ export function Navbar() {
                 >
                   Ingresar
                 </Link>
-                <Link
-                  to="/club"
-                  onClick={() => setOpen(false)}
-                  className="rounded-full bg-[var(--color-wine)] px-4 py-2 text-center text-sm font-medium text-white"
-                >
-                  Unirme al Club
-                </Link>
+                {branch && (
+                  <Link
+                    to={`${prefix}/club`}
+                    onClick={() => setOpen(false)}
+                    className="rounded-full bg-[var(--color-wine)] px-4 py-2 text-center text-sm font-medium text-white"
+                  >
+                    Unirme al Club
+                  </Link>
+                )}
               </>
             )}
           </nav>

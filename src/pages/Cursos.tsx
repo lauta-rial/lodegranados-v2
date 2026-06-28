@@ -1,13 +1,15 @@
 import { Link } from 'react-router-dom'
 import { CalendarDays, Clock, Users, ArrowRight } from 'lucide-react'
 import { useCourses } from '@/hooks/useCourses'
+import { useBranch } from '@/context/BranchContext'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { Badge } from '@/components/ui/Badge'
 import { formatDate, formatPrice } from '@/lib/utils'
 import type { Course } from '@/types/database'
 
 export function Cursos() {
-  const { data: courses, isLoading, error } = useCourses()
+  const branch = useBranch()
+  const { data: courses, isLoading, error } = useCourses(branch?.id)
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
@@ -19,7 +21,7 @@ export function Cursos() {
           Cursos de Vino
         </h1>
         <p className="mt-4 max-w-xl text-[var(--color-dark-muted)]">
-          Desde introducción al análisis sensorial hasta formación profesional en sommelier. Dictados por expertos en Mendoza.
+          Desde introducción al análisis sensorial hasta formación profesional en sommelier. Dictados por expertos.
         </p>
       </div>
 
@@ -29,7 +31,7 @@ export function Cursos() {
       {!isLoading && !error && courses && courses.length > 0 && (
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
           {courses.map((course) => (
-            <CourseCard key={course.id} course={course} />
+            <CourseCard key={course.id} course={course} branchSlug={branch?.slug ?? ''} />
           ))}
         </div>
       )}
@@ -37,12 +39,12 @@ export function Cursos() {
   )
 }
 
-function CourseCard({ course }: { course: Course }) {
+function CourseCard({ course, branchSlug }: { course: Course; branchSlug: string }) {
   const soldOut = course.available_spots === 0
 
   return (
     <Link
-      to={`/cursos/${course.id}`}
+      to={`/${branchSlug}/cursos/${course.id}`}
       className="group flex overflow-hidden rounded-2xl border border-[var(--color-parchment)] bg-white transition-shadow hover:shadow-lg"
     >
       {/* Image */}

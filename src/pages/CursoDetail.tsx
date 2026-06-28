@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { CalendarDays, Clock, Users, BookOpen, ArrowLeft, Check } from 'lucide-react'
 import { useCourse } from '@/hooks/useCourses'
+import { useBranch } from '@/context/BranchContext'
 import { useAuth } from '@/context/AuthContext'
 import { useCheckout } from '@/hooks/useCheckout'
 import { CheckoutModal } from '@/components/CheckoutModal'
@@ -10,6 +11,7 @@ import { formatDate, formatPrice } from '@/lib/utils'
 
 export function CursoDetail() {
   const { id } = useParams<{ id: string }>()
+  const branch = useBranch()
   const { data: course, isLoading, error } = useCourse(id ?? '')
   const { user } = useAuth()
   const { checkout, loading: checkoutLoading, error: checkoutError } = useCheckout()
@@ -38,7 +40,7 @@ export function CursoDetail() {
   return (
     <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6 lg:px-8">
       <Link
-        to="/cursos"
+        to={`/${branch?.slug ?? ''}/cursos`}
         className="mb-8 inline-flex items-center gap-2 text-sm text-[var(--color-muted)] hover:text-[var(--color-dark)] transition-colors"
       >
         <ArrowLeft size={14} /> Volver a cursos
@@ -195,10 +197,11 @@ function Loading() {
 }
 
 function ErrorState() {
+  const branch = useBranch()
   return (
     <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6 lg:px-8 text-center">
       <p className="font-display text-2xl text-[var(--color-dark)]">No encontramos este curso</p>
-      <Link to="/cursos" className="mt-4 inline-flex items-center gap-2 text-[var(--color-wine)]">
+      <Link to={`/${branch?.slug ?? ''}/cursos`} className="mt-4 inline-flex items-center gap-2 text-[var(--color-wine)]">
         <ArrowLeft size={14} /> Ver todos los cursos
       </Link>
     </div>

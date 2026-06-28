@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Check, ArrowRight } from 'lucide-react'
 import { usePlans } from '@/hooks/usePlans'
+import { useBranch } from '@/context/BranchContext'
 import { useAuth } from '@/context/AuthContext'
 import { useSubscription } from '@/hooks/useSubscription'
 import { CheckoutModal } from '@/components/CheckoutModal'
@@ -11,7 +12,8 @@ import { cn } from '@/lib/utils'
 import type { Plan } from '@/types/database'
 
 export function Club() {
-  const { data: plans, isLoading, error } = usePlans()
+  const branch = useBranch()
+  const { data: plans, isLoading, error } = usePlans(branch?.id)
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
@@ -37,7 +39,7 @@ export function Club() {
         {!isLoading && !error && plans && plans.length > 0 && (
           <div className="mx-auto max-w-3xl grid grid-cols-1 gap-6 sm:grid-cols-2">
             {plans.map((plan) => (
-              <PlanCard key={plan.id} plan={plan} />
+              <PlanCard key={plan.id} plan={plan} branchSlug={branch?.slug ?? ''} />
             ))}
           </div>
         )}
@@ -64,7 +66,7 @@ export function Club() {
   )
 }
 
-function PlanCard({ plan }: { plan: Plan }) {
+function PlanCard({ plan, branchSlug }: { plan: Plan; branchSlug: string }) {
   const features = Array.isArray(plan.features) ? (plan.features as string[]) : []
   const { user } = useAuth()
   const { subscribe, loading, error } = useSubscription()
@@ -178,7 +180,7 @@ function PlanCard({ plan }: { plan: Plan }) {
             {loading ? 'Redirigiendo…' : `Suscribirme al ${plan.name}`}
           </button>
           <Link
-            to={`/club/${plan.id}`}
+            to={`/${branchSlug}/club/${plan.id}`}
             className={cn(
               'flex items-center justify-center gap-1 text-xs transition-colors',
               plan.highlighted ? 'text-white/70 hover:text-white' : 'text-[var(--color-muted)] hover:text-[var(--color-dark)]',

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { CalendarDays, MapPin, Users, ArrowLeft } from 'lucide-react'
 import { useEvent } from '@/hooks/useEvents'
+import { useBranch } from '@/context/BranchContext'
 import { useAuth } from '@/context/AuthContext'
 import { useCheckout } from '@/hooks/useCheckout'
 import { CheckoutModal } from '@/components/CheckoutModal'
@@ -11,6 +12,7 @@ import { formatDate, formatPrice } from '@/lib/utils'
 
 export function CataDetail() {
   const { id } = useParams<{ id: string }>()
+  const branch = useBranch()
   const { data: event, isLoading, error } = useEvent(id ?? '')
   const { user } = useAuth()
   const { checkout, loading: checkoutLoading, error: checkoutError } = useCheckout()
@@ -38,7 +40,7 @@ export function CataDetail() {
   return (
     <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6 lg:px-8">
       <Link
-        to="/catas"
+        to={`/${branch?.slug ?? ''}/catas`}
         className="mb-8 inline-flex items-center gap-2 text-sm text-[var(--color-muted)] hover:text-[var(--color-dark)] transition-colors"
       >
         <ArrowLeft size={14} /> Volver a catas
@@ -177,10 +179,11 @@ function CataDetailLoading() {
 }
 
 function CataDetailError() {
+  const branch = useBranch()
   return (
     <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6 lg:px-8 text-center">
       <p className="font-display text-2xl text-[var(--color-dark)]">No encontramos esta cata</p>
-      <Link to="/catas" className="mt-4 inline-flex items-center gap-2 text-[var(--color-wine)]">
+      <Link to={`/${branch?.slug ?? ''}/catas`} className="mt-4 inline-flex items-center gap-2 text-[var(--color-wine)]">
         <ArrowLeft size={14} /> Ver todas las catas
       </Link>
     </div>
