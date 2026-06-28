@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { CheckCircle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/context/AuthContext'
 import { formatPrice } from '@/lib/utils'
 
 const emailType: Record<string, string> = {
@@ -12,15 +13,19 @@ const emailType: Record<string, string> = {
 
 export function PagoExitoso() {
   const [params] = useSearchParams()
+  const { user } = useAuth()
   const type = params.get('type') ?? ''
-  const emailSent = useRef(false)
+  const ref = params.get('ref') ?? ''
+  const paymentId = params.get('payment_id') ?? ''
+  const status = params.get('status') ?? ''
+  const processed = useRef(false)
 
   useEffect(() => {
-    if (emailSent.current) return
+    if (processed.current || status !== 'approved' || !ref) return
     const raw = sessionStorage.getItem('mp_checkout')
     if (!raw) return
     sessionStorage.removeItem('mp_checkout')
-    emailSent.current = true
+    processed.current = true
 
     try {
       const { payerEmail, payerName, title, price } = JSON.parse(raw) as {
@@ -30,6 +35,28 @@ export function PagoExitoso() {
         payerName: string
         payerEmail: string
       }
+
+      // Insert registration/enrollment in DB
+      if (type === 'event') {
+        supabase.from('registrations').insert({
+          event_id: ref,
+          user_id: user?.id ?? null,
+          name: payerName || null,
+          email: payerEmail || null,
+          spots: 1,
+          payment_id: paymentId || null,
+        })
+      } else if (type === 'course') {
+        supabase.from('enrollments').insert({
+          course_id: ref,
+          user_id: user?.id ?? null,
+          name: payerName || null,
+          email: payerEmail || null,
+          payment_id: paymentId || null,
+          status: 'enrolled',
+        })
+      }
+
       if (!payerEmail) return
 
       supabase.functions.invoke('send-email', {
@@ -44,9 +71,9 @@ export function PagoExitoso() {
         },
       })
     } catch {
-      // silent — email is best-effort
+      // silent — both DB write and email are best-effort
     }
-  }, [type])
+  }, [type, ref, paymentId, status, user])
 
   const backLink =
     type === 'event' ? '/catas' : type === 'course' ? '/cursos' : type === 'plan' ? '/club' : '/'
