@@ -35,17 +35,16 @@ export function Navbar() {
   return (
     <header className="sticky top-0 z-50 border-b border-[var(--color-parchment)] bg-[var(--color-cream)]/95 backdrop-blur-sm">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center gap-3">
-          <Link to="/" className="font-display text-xl font-semibold tracking-wide text-[var(--color-dark)]">
-            Lo de Granados
-          </Link>
+        <Link to="/" className="flex flex-col leading-none">
           {branch && (
-            <>
-              <span className="text-[var(--color-parchment)]">/</span>
-              <span className="text-sm font-medium text-[var(--color-wine)]">{branch.name}</span>
-            </>
+            <span className="text-[10px] font-semibold uppercase tracking-[0.25em] text-[var(--color-wine)] mb-0.5">
+              {branch.name}
+            </span>
           )}
-        </div>
+          <span className="font-display text-xl font-semibold tracking-wide text-[var(--color-dark)]">
+            Lo de Granados
+          </span>
+        </Link>
 
         {links.length > 0 && (
           <nav className="hidden items-center gap-8 md:flex">
