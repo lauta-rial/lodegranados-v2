@@ -13,7 +13,7 @@ export function BranchHome() {
   return (
     <div>
       {/* Branch hero */}
-      <section className="relative flex min-h-[55vh] items-end overflow-hidden">
+      <section className="relative flex min-h-[60vh] items-end overflow-hidden">
         <div
           className="absolute inset-0"
           style={{ background: 'linear-gradient(135deg, #2c1810 0%, #7b1c35 50%, #c4956a 100%)' }}
@@ -33,12 +33,39 @@ export function BranchHome() {
           <h1 className="mt-3 font-display text-5xl font-light leading-none text-white sm:text-6xl lg:text-7xl">
             {branch.name}
           </h1>
-          {branch.address && (
-            <div className="mt-4 flex items-center gap-2 text-white/60">
-              <MapPin size={14} />
-              <span className="text-sm">{branch.address}{branch.city && branch.city !== 'Rosario' ? `, ${branch.city}` : ''}</span>
-            </div>
-          )}
+
+          {/* Address + contact inline */}
+          <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2">
+            {branch.address && (
+              <div className="flex items-center gap-1.5 text-white/60">
+                <MapPin size={13} />
+                <span className="text-sm">{branch.address}{branch.city && branch.city !== 'Rosario' ? `, ${branch.city}` : ''}</span>
+              </div>
+            )}
+            {branch.phone && (
+              <a
+                href={`https://wa.me/${branch.phone.replace(/\D/g, '')}`}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-1.5 text-sm text-white/60 hover:text-white/90 transition-colors"
+              >
+                <Phone size={13} />
+                {branch.phone}
+              </a>
+            )}
+            {branch.instagram && (
+              <a
+                href={`https://instagram.com/${branch.instagram.replace('@', '')}`}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-1.5 text-sm text-white/60 hover:text-white/90 transition-colors"
+              >
+                <Instagram size={13} />
+                {branch.instagram}
+              </a>
+            )}
+          </div>
+
           <div className="mt-8 flex flex-wrap gap-4">
             <Link
               to={`${prefix}/catas`}
@@ -56,41 +83,12 @@ export function BranchHome() {
         </div>
       </section>
 
-      {/* Contact strip */}
-      {(branch.phone || branch.instagram) && (
-        <div className="border-b border-[var(--color-parchment)] bg-white">
-          <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-6 px-4 py-4 sm:px-6 lg:px-8">
-            {branch.phone && (
-              <a
-                href={`https://wa.me/${branch.phone.replace(/\D/g, '')}`}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-2 text-sm text-[var(--color-dark-muted)] hover:text-[var(--color-wine)] transition-colors"
-              >
-                <Phone size={14} />
-                {branch.phone}
-              </a>
-            )}
-            {branch.instagram && (
-              <a
-                href={`https://instagram.com/${branch.instagram.replace('@', '')}`}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-2 text-sm text-[var(--color-dark-muted)] hover:text-[var(--color-wine)] transition-colors"
-              >
-                <Instagram size={14} />
-                {branch.instagram}
-              </a>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* Experience cards */}
       <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
         <div className="mb-12 text-center">
-          <h2 className="font-display text-4xl font-light text-[var(--color-dark)]">
-            Experiencias
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--color-muted)]">Experiencias</p>
+          <h2 className="mt-3 font-display text-4xl font-light text-[var(--color-dark)]">
+            ¿Qué querés hacer?
           </h2>
         </div>
 

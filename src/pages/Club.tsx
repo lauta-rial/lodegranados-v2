@@ -14,6 +14,9 @@ import type { Plan } from '@/types/database'
 export function Club() {
   const branch = useBranch()
   const { data: plans, isLoading, error } = usePlans(branch?.id)
+  const waUrl = branch?.phone
+    ? `https://wa.me/${branch.phone.replace(/\D/g, '')}`
+    : 'https://wa.me/5493410000000'
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
@@ -54,7 +57,7 @@ export function Club() {
           Escribinos por WhatsApp y te respondemos en minutos.
         </p>
         <a
-          href="https://wa.me/5492612345678"
+          href={waUrl}
           target="_blank"
           rel="noreferrer"
           className="mt-6 inline-flex h-10 items-center justify-center gap-2 rounded-full bg-[var(--color-wine)] px-6 text-sm font-medium text-white transition-colors hover:bg-[var(--color-wine-dark)]"

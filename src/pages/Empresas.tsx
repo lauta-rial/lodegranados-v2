@@ -1,8 +1,13 @@
 import { useState, type FormEvent } from 'react'
 import { MessageCircle, Mail, Building2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { useBranch } from '@/context/BranchContext'
 
 export function Empresas() {
+  const branch = useBranch()
+  const waUrl = branch?.phone
+    ? `https://wa.me/${branch.phone.replace(/\D/g, '')}`
+    : 'https://wa.me/5493410000000'
   const [form, setForm] = useState({ name: '', email: '', message: '' })
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(false)
@@ -97,7 +102,7 @@ export function Empresas() {
                 Si necesitás una respuesta inmediata, escribinos directamente.
               </p>
               <a
-                href="https://wa.me/5492612345678"
+                href={waUrl}
                 target="_blank"
                 rel="noreferrer"
                 className="mt-4 inline-flex h-10 items-center gap-2 rounded-full bg-[#25D366] px-5 text-sm font-medium text-white transition-opacity hover:opacity-90"
