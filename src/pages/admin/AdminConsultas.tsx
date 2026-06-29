@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { useAdmin } from '@/context/AdminContext'
 import { StatusBadge } from './AdminDashboard'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { formatDate } from '@/lib/utils'
@@ -11,12 +12,14 @@ const statuses = ['all', 'new', 'read', 'archived'] as const
 export function AdminConsultas() {
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const qc = useQueryClient()
+  const { branchId } = useAdmin()
 
   const { data, isLoading } = useQuery<Inquiry[]>({
-    queryKey: ['admin-inquiries', statusFilter],
+    queryKey: ['admin-inquiries', statusFilter, branchId],
     queryFn: async () => {
       let q = supabase.from('inquiries').select('*').order('created_at', { ascending: false })
       if (statusFilter !== 'all') q = q.eq('status', statusFilter)
+      if (branchId) q = q.eq('branch_id', branchId)
       const { data, error } = await q
       if (error) throw error
       return data

@@ -19,6 +19,7 @@ export type Database = {
           city: string | null
           created_at: string | null
           id: string
+          image_url: string | null
           instagram: string | null
           name: string
           phone: string | null
@@ -31,6 +32,7 @@ export type Database = {
           city?: string | null
           created_at?: string | null
           id?: string
+          image_url?: string | null
           instagram?: string | null
           name: string
           phone?: string | null
@@ -43,6 +45,7 @@ export type Database = {
           city?: string | null
           created_at?: string | null
           id?: string
+          image_url?: string | null
           instagram?: string | null
           name?: string
           phone?: string | null
@@ -259,6 +262,7 @@ export type Database = {
           features: Json | null
           highlighted: boolean | null
           id: string
+          image_url: string | null
           mp_plan_id: string | null
           name: string
           price: number | null
@@ -273,6 +277,7 @@ export type Database = {
           features?: Json | null
           highlighted?: boolean | null
           id?: string
+          image_url?: string | null
           mp_plan_id?: string | null
           name: string
           price?: number | null
@@ -287,6 +292,7 @@ export type Database = {
           features?: Json | null
           highlighted?: boolean | null
           id?: string
+          image_url?: string | null
           mp_plan_id?: string | null
           name?: string
           price?: number | null
@@ -372,6 +378,51 @@ export type Database = {
         }
         Relationships: []
       }
+      tickets: {
+        Row: {
+          created_at: string | null
+          event_id: string
+          id: string
+          registration_id: string
+          token: string
+          validated_at: string | null
+          validated_by: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          event_id: string
+          id?: string
+          registration_id: string
+          token?: string
+          validated_at?: string | null
+          validated_by?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          event_id?: string
+          id?: string
+          registration_id?: string
+          token?: string
+          validated_at?: string | null
+          validated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tickets_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tickets_registration_id_fkey"
+            columns: ["registration_id"]
+            isOneToOne: false
+            referencedRelation: "registrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -398,3 +449,4 @@ export type Registration = Database['public']['Tables']['registrations']['Row']
 export type Enrollment = Database['public']['Tables']['enrollments']['Row']
 export type Inquiry = Database['public']['Tables']['inquiries']['Row']
 export type NewsletterRow = Database['public']['Tables']['newsletter']['Row']
+export type Ticket = Database['public']['Tables']['tickets']['Row']

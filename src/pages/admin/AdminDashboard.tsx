@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { CalendarDays, BookOpen, Users, MessageSquare, ClipboardList, UserCheck } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { useAdmin } from '@/context/AdminContext'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { formatDate } from '@/lib/utils'
 
@@ -13,10 +14,43 @@ interface Counts {
   enrollments: number
 }
 
-function useDashboard() {
+function useDashboard(branchId: string | null) {
   return useQuery<Counts>({
-    queryKey: ['admin-dashboard'],
+    queryKey: ['admin-dashboard', branchId],
     queryFn: async () => {
+      if (branchId) {
+        // Branch admin: filter by branch. Registrations/enrollments via ID lists.
+        const [eventsQ, coursesQ, subsQ, inquiriesQ] = await Promise.all([
+          supabase.from('events').select('*', { count: 'exact', head: true }).eq('active', true).eq('branch_id', branchId),
+          supabase.from('courses').select('*', { count: 'exact', head: true }).eq('active', true).eq('branch_id', branchId),
+          supabase.from('subscriptions').select('*', { count: 'exact', head: true }).eq('status', 'active').eq('branch_id', branchId),
+          supabase.from('inquiries').select('*', { count: 'exact', head: true }).eq('status', 'new').eq('branch_id', branchId),
+        ])
+        const [eventsIds, coursesIds] = await Promise.all([
+          supabase.from('events').select('id').eq('branch_id', branchId),
+          supabase.from('courses').select('id').eq('branch_id', branchId),
+        ])
+        const eventIds = eventsIds.data?.map(e => e.id) ?? []
+        const courseIds = coursesIds.data?.map(c => c.id) ?? []
+        const [regQ, enrQ] = await Promise.all([
+          eventIds.length > 0
+            ? supabase.from('registrations').select('*', { count: 'exact', head: true }).in('event_id', eventIds)
+            : Promise.resolve({ count: 0 }),
+          courseIds.length > 0
+            ? supabase.from('enrollments').select('*', { count: 'exact', head: true }).in('course_id', courseIds)
+            : Promise.resolve({ count: 0 }),
+        ])
+        return {
+          events: eventsQ.count ?? 0,
+          courses: coursesQ.count ?? 0,
+          subscriptions: subsQ.count ?? 0,
+          inquiries_new: inquiriesQ.count ?? 0,
+          registrations: regQ.count ?? 0,
+          enrollments: enrQ.count ?? 0,
+        }
+      }
+
+      // Superadmin: global counts
       const [events, courses, subscriptions, inquiries, registrations, enrollments] =
         await Promise.all([
           supabase.from('events').select('*', { count: 'exact', head: true }).eq('active', true),
@@ -38,15 +72,13 @@ function useDashboard() {
   })
 }
 
-function useRecentInquiries() {
+function useRecentInquiries(branchId: string | null) {
   return useQuery({
-    queryKey: ['admin-recent-inquiries'],
+    queryKey: ['admin-recent-inquiries', branchId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('inquiries')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(5)
+      let q = supabase.from('inquiries').select('*').order('created_at', { ascending: false }).limit(5)
+      if (branchId) q = q.eq('branch_id', branchId)
+      const { data, error } = await q
       if (error) throw error
       return data
     },
@@ -54,8 +86,9 @@ function useRecentInquiries() {
 }
 
 export function AdminDashboard() {
-  const { data: counts, isLoading } = useDashboard()
-  const { data: inquiries } = useRecentInquiries()
+  const { branchId, isSuperAdmin } = useAdmin()
+  const { data: counts, isLoading } = useDashboard(branchId)
+  const { data: inquiries } = useRecentInquiries(branchId)
 
   const kpis = [
     { label: 'Eventos activos', value: counts?.events, icon: CalendarDays, color: 'text-[var(--color-wine)]', bg: 'bg-[var(--color-wine)]/10' },
@@ -70,10 +103,11 @@ export function AdminDashboard() {
     <div className="p-8">
       <div className="mb-8">
         <h1 className="font-display text-3xl text-[var(--color-dark)]">Dashboard</h1>
-        <p className="mt-1 text-sm text-[var(--color-muted)]">Resumen general de Lo de Granados</p>
+        <p className="mt-1 text-sm text-[var(--color-muted)]">
+          {isSuperAdmin ? 'Resumen global — todas las sucursales' : 'Resumen de tu sucursal'}
+        </p>
       </div>
 
-      {/* KPIs */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
         {kpis.map(({ label, value, icon: Icon, color, bg }) => (
           <div key={label} className="rounded-xl border border-[var(--color-parchment)] bg-white p-5">
@@ -94,7 +128,6 @@ export function AdminDashboard() {
         ))}
       </div>
 
-      {/* Recent inquiries */}
       <div className="mt-10">
         <h2 className="mb-4 font-display text-xl text-[var(--color-dark)]">Consultas recientes</h2>
         <div className="rounded-xl border border-[var(--color-parchment)] bg-white overflow-hidden">

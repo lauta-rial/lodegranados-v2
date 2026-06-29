@@ -11,11 +11,12 @@ type Props = {
   onConfirm: (name: string, email: string) => void
   title: string
   price: number | null
+  spots?: number
   loading: boolean
   error: string | null
 }
 
-export function CheckoutModal({ open, onClose, onConfirm, title, price, loading, error }: Props) {
+export function CheckoutModal({ open, onClose, onConfirm, title, price, spots = 1, loading, error }: Props) {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
 
@@ -44,8 +45,9 @@ export function CheckoutModal({ open, onClose, onConfirm, title, price, loading,
         <p className="mt-1 text-sm text-[var(--color-muted)]">
           {title}
           {price != null && (
-            <> · <span className="font-semibold text-[var(--color-wine)]">{formatPrice(price)}</span></>
+            <> · <span className="font-semibold text-[var(--color-wine)]">{formatPrice(price * spots)}</span></>
           )}
+          {spots > 1 && <span className="ml-1 text-[var(--color-muted)]">({spots} entradas)</span>}
         </p>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { MapPin, Phone, Instagram } from 'lucide-react'
+import { MapPin, MessageCircle } from 'lucide-react'
 import { useBranch } from '@/context/BranchContext'
 
 export function Footer() {
@@ -77,7 +77,7 @@ export function Footer() {
                   {waUrl && (
                     <li>
                       <a href={waUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 hover:text-[var(--color-wine)] transition-colors">
-                        <Phone size={13} className="text-[var(--color-muted)]" />
+                        <MessageCircle size={13} className="text-[var(--color-muted)]" />
                         {branch.phone}
                       </a>
                     </li>
@@ -88,9 +88,8 @@ export function Footer() {
                         href={`https://instagram.com/${branch.instagram.replace('@', '')}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="flex items-center gap-1.5 hover:text-[var(--color-wine)] transition-colors"
+                        className="hover:text-[var(--color-wine)] transition-colors"
                       >
-                        <Instagram size={13} className="text-[var(--color-muted)]" />
                         {branch.instagram}
                       </a>
                     </li>

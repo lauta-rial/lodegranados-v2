@@ -36,6 +36,7 @@ export function useSubscription() {
         price: params.price,
         payerName,
         payerEmail,
+        branchSlug: window.location.pathname.split('/')[1],
       }))
       window.location.href = data.url
     } catch (err) {

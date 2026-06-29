@@ -7,6 +7,7 @@ export type CheckoutParams = {
   id: string
   title: string
   price: number
+  spots?: number
   payerName?: string
   payerEmail?: string
 }
@@ -26,7 +27,7 @@ export function useCheckout() {
           id: params.id,
           title: params.title,
           price: params.price,
-          quantity: 1,
+          quantity: params.spots ?? 1,
           payerName: params.payerName ?? user?.user_metadata?.full_name ?? '',
           payerEmail: params.payerEmail ?? user?.email ?? '',
           siteUrl: window.location.origin,
@@ -39,8 +40,10 @@ export function useCheckout() {
         type: params.type,
         title: params.title,
         price: params.price,
+        spots: params.spots ?? 1,
         payerName: params.payerName ?? user?.user_metadata?.full_name ?? '',
         payerEmail: params.payerEmail ?? user?.email ?? '',
+        branchSlug: window.location.pathname.split('/')[1],
       }))
       window.location.href = data.url
     } catch (err) {

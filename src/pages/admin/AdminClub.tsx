@@ -4,6 +4,8 @@ import { Plus, Pencil, Trash2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Modal } from '@/components/admin/Modal'
 import { FormField, FormActions, fieldClass } from '@/components/admin/AdminFormField'
+import { ImageUpload } from '@/components/admin/ImageUpload'
+import { useAdmin } from '@/context/AdminContext'
 import { StatusBadge } from './AdminDashboard'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { formatPrice } from '@/lib/utils'
@@ -36,16 +38,22 @@ export function AdminClub() {
   )
 }
 
+type PlanWithBranch = Plan & { branches: { name: string } | null }
+
 function PlansTab() {
   const qc = useQueryClient()
+  const { branchId, isSuperAdmin } = useAdmin()
   const [modal, setModal] = useState<{ open: boolean; plan?: Plan }>({ open: false })
 
-  const { data: plans, isLoading } = useQuery<Plan[]>({
-    queryKey: ['admin-plans'],
+  const { data: plans, isLoading } = useQuery<PlanWithBranch[]>({
+    queryKey: ['admin-plans', branchId],
     queryFn: async () => {
-      const { data, error } = await supabase.from('plans').select('*').order('price', { ascending: true })
+      let q = supabase.from('plans').select('*, branches(name)').order('price', { ascending: true })
+      if (branchId) q = q.eq('branch_id', branchId)
+      const { data, error } = await q
       if (error) throw error
-      return data
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (data ?? []) as any as PlanWithBranch[]
     },
   })
 
@@ -75,6 +83,7 @@ function PlansTab() {
             <thead className="border-b border-[var(--color-parchment)] bg-[var(--color-cream)]">
               <tr>
                 <th className="px-4 py-3 text-left font-medium text-[var(--color-muted)]">Plan</th>
+                {isSuperAdmin && <th className="px-4 py-3 text-left font-medium text-[var(--color-muted)]">Sucursal</th>}
                 <th className="px-4 py-3 text-left font-medium text-[var(--color-muted)]">Precio</th>
                 <th className="px-4 py-3 text-left font-medium text-[var(--color-muted)]">Destacado</th>
                 <th className="px-4 py-3 text-left font-medium text-[var(--color-muted)]">Estado</th>
@@ -85,6 +94,7 @@ function PlansTab() {
               {plans.map((p) => (
                 <tr key={p.id} className="hover:bg-[var(--color-cream)]/50">
                   <td className="px-4 py-3 font-medium text-[var(--color-dark)]">{p.emoji} {p.name}</td>
+                  {isSuperAdmin && <td className="px-4 py-3 text-[var(--color-dark-muted)]">{p.branches?.name ?? '—'}</td>}
                   <td className="px-4 py-3 text-[var(--color-dark-muted)]">{p.price ? formatPrice(p.price) : '—'}/mes</td>
                   <td className="px-4 py-3">{p.highlighted ? <StatusBadge status="active" /> : '—'}</td>
                   <td className="px-4 py-3"><StatusBadge status={p.active ? 'active' : 'cancelled'} /></td>
@@ -104,6 +114,7 @@ function PlansTab() {
       <PlanModal
         open={modal.open}
         plan={modal.plan}
+        branchId={branchId}
         onClose={() => setModal({ open: false })}
         onSaved={() => {
           setModal({ open: false })
@@ -115,7 +126,8 @@ function PlansTab() {
   )
 }
 
-function PlanModal({ open, plan, onClose, onSaved }: { open: boolean; plan?: Plan; onClose: () => void; onSaved: () => void }) {
+function PlanModal({ open, plan, branchId, onClose, onSaved }: { open: boolean; plan?: Plan; branchId: string | null; onClose: () => void; onSaved: () => void }) {
+  const { isSuperAdmin } = useAdmin()
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState({
     name: plan?.name ?? '',
@@ -124,11 +136,24 @@ function PlanModal({ open, plan, onClose, onSaved }: { open: boolean; plan?: Pla
     badge: plan?.badge ?? '',
     highlighted: plan?.highlighted ?? false,
     features: Array.isArray(plan?.features) ? (plan.features as string[]).join('\n') : '',
+    image_url: plan?.image_url ?? '',
+    branch_id: plan?.branch_id ?? '',
+  })
+
+  const { data: branches } = useQuery<{ id: string; name: string }[]>({
+    queryKey: ['branches-list'],
+    queryFn: async () => {
+      const { data } = await supabase.from('branches').select('id, name').order('name')
+      return data ?? []
+    },
+    enabled: isSuperAdmin,
+    staleTime: Infinity,
   })
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
+    const resolvedBranchId = isSuperAdmin ? (form.branch_id || null) : (branchId ?? null)
     const payload = {
       name: form.name,
       emoji: form.emoji || null,
@@ -136,7 +161,9 @@ function PlanModal({ open, plan, onClose, onSaved }: { open: boolean; plan?: Pla
       badge: form.badge || null,
       highlighted: form.highlighted,
       features: form.features ? form.features.split('\n').filter(Boolean) : null,
+      image_url: form.image_url || null,
       active: true,
+      branch_id: resolvedBranchId,
     }
     const { error } = plan?.id
       ? await supabase.from('plans').update(payload).eq('id', plan.id)
@@ -152,6 +179,16 @@ function PlanModal({ open, plan, onClose, onSaved }: { open: boolean; plan?: Pla
           <FormField label="Nombre"><input required className={fieldClass} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></FormField>
           <FormField label="Emoji"><input className={fieldClass} value={form.emoji} onChange={e => setForm(f => ({ ...f, emoji: e.target.value }))} placeholder="🍷" /></FormField>
         </div>
+        {isSuperAdmin && (
+          <FormField label="Sucursal">
+            <select className={fieldClass} value={form.branch_id} onChange={e => setForm(f => ({ ...f, branch_id: e.target.value }))}>
+              <option value="">— Sin sucursal —</option>
+              {branches?.map(b => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </select>
+          </FormField>
+        )}
         <div className="grid grid-cols-2 gap-4">
           <FormField label="Precio mensual (ARS)"><input type="number" min="0" className={fieldClass} value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} /></FormField>
           <FormField label="Badge (ej: Más popular)"><input className={fieldClass} value={form.badge} onChange={e => setForm(f => ({ ...f, badge: e.target.value }))} /></FormField>
@@ -163,6 +200,9 @@ function PlanModal({ open, plan, onClose, onSaved }: { open: boolean; plan?: Pla
           <input type="checkbox" checked={form.highlighted} onChange={e => setForm(f => ({ ...f, highlighted: e.target.checked }))} className="rounded" />
           <span className="text-[var(--color-dark)]">Marcar como destacado</span>
         </label>
+        <FormField label="Imagen">
+          <ImageUpload folder="plans/" value={form.image_url} onChange={url => setForm(f => ({ ...f, image_url: url }))} dimensions="800 × 600 px · ratio 4:3" />
+        </FormField>
         <FormActions onCancel={onClose} loading={loading} label={plan ? 'Guardar cambios' : 'Crear plan'} />
       </form>
     </Modal>
@@ -171,11 +211,12 @@ function PlanModal({ open, plan, onClose, onSaved }: { open: boolean; plan?: Pla
 
 function SubscriptionsTab() {
   const [statusFilter, setStatusFilter] = useState('all')
+  const { isSuperAdmin } = useAdmin()
 
-  const { data, isLoading } = useQuery<(Subscription & { plan_name: string })[]>({
+  const { data, isLoading } = useQuery<(Subscription & { plan_name: string; branch_name: string })[]>({
     queryKey: ['admin-subscriptions', statusFilter],
     queryFn: async () => {
-      let q = supabase.from('subscriptions').select('*, plans(name)').order('created_at', { ascending: false })
+      let q = supabase.from('subscriptions').select('*, plans(name), branches(name)').order('created_at', { ascending: false })
       if (statusFilter !== 'all') q = q.eq('status', statusFilter)
       const { data, error } = await q
       if (error) throw error
@@ -183,6 +224,7 @@ function SubscriptionsTab() {
       return (data ?? []).map((s: any) => ({
         ...s,
         plan_name: s.plans?.name ?? '—',
+        branch_name: s.branches?.name ?? '—',
       }))
     },
   })
@@ -210,6 +252,7 @@ function SubscriptionsTab() {
             <thead className="border-b border-[var(--color-parchment)] bg-[var(--color-cream)]">
               <tr>
                 <th className="px-4 py-3 text-left font-medium text-[var(--color-muted)]">Plan</th>
+                {isSuperAdmin && <th className="px-4 py-3 text-left font-medium text-[var(--color-muted)]">Sucursal</th>}
                 <th className="px-4 py-3 text-left font-medium text-[var(--color-muted)]">Precio</th>
                 <th className="px-4 py-3 text-left font-medium text-[var(--color-muted)]">Inicio</th>
                 <th className="px-4 py-3 text-left font-medium text-[var(--color-muted)]">Estado</th>
@@ -219,6 +262,7 @@ function SubscriptionsTab() {
               {data.map((s) => (
                 <tr key={s.id} className="hover:bg-[var(--color-cream)]/50">
                   <td className="px-4 py-3 font-medium text-[var(--color-dark)]">{s.plan_name}</td>
+                  {isSuperAdmin && <td className="px-4 py-3 text-[var(--color-dark-muted)]">{s.branch_name}</td>}
                   <td className="px-4 py-3 text-[var(--color-dark-muted)]">{s.monthly_price ? formatPrice(s.monthly_price) : '—'}</td>
                   <td className="px-4 py-3 text-[var(--color-dark-muted)]">{s.start_date ?? '—'}</td>
                   <td className="px-4 py-3"><StatusBadge status={s.status} /></td>

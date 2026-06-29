@@ -4,7 +4,7 @@ import { Check, ArrowRight } from 'lucide-react'
 import { usePlans } from '@/hooks/usePlans'
 import { useBranch } from '@/context/BranchContext'
 import { useAuth } from '@/context/AuthContext'
-import { useSubscription } from '@/hooks/useSubscription'
+import { useCheckout } from '@/hooks/useCheckout'
 import { CheckoutModal } from '@/components/CheckoutModal'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { formatPrice } from '@/lib/utils'
@@ -72,21 +72,19 @@ export function Club() {
 function PlanCard({ plan, branchSlug }: { plan: Plan; branchSlug: string }) {
   const features = Array.isArray(plan.features) ? (plan.features as string[]) : []
   const { user } = useAuth()
-  const { subscribe, loading, error } = useSubscription()
+  const { checkout, loading, error } = useCheckout()
   const [modalOpen, setModalOpen] = useState(false)
 
   function handleSuscribir() {
-    if (!plan.mp_plan_id) return
     if (user) {
-      subscribe({ planId: plan.id, mpPlanId: plan.mp_plan_id, planName: plan.name, price: plan.price ?? 0 })
+      checkout({ type: 'plan', id: plan.id, title: plan.name, price: plan.price ?? 0 })
     } else {
       setModalOpen(true)
     }
   }
 
   function handleModalConfirm(name: string, email: string) {
-    if (!plan.mp_plan_id) return
-    subscribe({ planId: plan.id, mpPlanId: plan.mp_plan_id, planName: plan.name, price: plan.price ?? 0, payerName: name, payerEmail: email })
+    checkout({ type: 'plan', id: plan.id, title: plan.name, price: plan.price ?? 0, payerName: name, payerEmail: email })
   }
 
   return (
@@ -109,6 +107,12 @@ function PlanCard({ plan, branchSlug }: { plan: Plan; branchSlug: string }) {
             )}
           >
             {plan.badge}
+          </div>
+        )}
+
+        {plan.image_url && (
+          <div className="-mx-8 -mt-8 mb-6 h-36 overflow-hidden rounded-t-2xl">
+            <img src={plan.image_url} alt={plan.name} className="h-full w-full object-cover" />
           </div>
         )}
 
@@ -172,7 +176,7 @@ function PlanCard({ plan, branchSlug }: { plan: Plan; branchSlug: string }) {
         <div className="mt-8 flex flex-col gap-2">
           <button
             onClick={handleSuscribir}
-            disabled={loading || !plan.mp_plan_id}
+            disabled={loading}
             className={cn(
               'h-11 w-full rounded-full text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60',
               plan.highlighted

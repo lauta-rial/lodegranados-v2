@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { CheckCircle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -21,6 +21,15 @@ export function PagoExitoso() {
   const status = params.get('status') ?? ''
   const processed = useRef(false)
 
+  const [branchSlug] = useState<string>(() => {
+    try {
+      const raw = sessionStorage.getItem('mp_checkout')
+      return raw ? (JSON.parse(raw).branchSlug ?? '') : ''
+    } catch {
+      return ''
+    }
+  })
+
   useEffect(() => {
     if (processed.current || !ref || authLoading) return
     // Subscriptions: MP redirects with preapproval_id (no status param)
@@ -35,12 +44,14 @@ export function PagoExitoso() {
     processed.current = true
 
     try {
-      const { payerEmail, payerName, title, price } = JSON.parse(raw) as {
+      const { payerEmail, payerName, title, price, spots = 1 } = JSON.parse(raw) as {
         type: string
         title: string
         price: number
+        spots?: number
         payerName: string
         payerEmail: string
+        branchSlug?: string
       }
 
       // DB insert + email handled server-side by the edge function (service role bypasses RLS)
@@ -57,8 +68,9 @@ export function PagoExitoso() {
           name: payerName || payerEmail,
           data: {
             title,
-            price: price ? formatPrice(price) : undefined,
+            price: price ? formatPrice(price * spots) : undefined,
             priceAmount: price ?? null,
+            spots,
           },
         },
       })
@@ -67,8 +79,11 @@ export function PagoExitoso() {
     }
   }, [type, ref, paymentId, preapprovalId, status, user, authLoading])
 
+  const prefix = branchSlug ? `/${branchSlug}` : ''
   const backLink =
-    type === 'event' ? '/catas' : type === 'course' ? '/cursos' : type === 'plan' ? '/club' : '/'
+    type === 'event'  ? `${prefix}/catas`  :
+    type === 'course' ? `${prefix}/cursos` :
+    type === 'plan'   ? `${prefix}/club`   : '/'
   const backLabel =
     type === 'event'
       ? 'Ver todas las catas'

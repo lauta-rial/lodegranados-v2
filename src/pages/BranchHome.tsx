@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom'
-import { Wine, BookOpen, Users, MapPin, Phone, Instagram, ArrowRight } from 'lucide-react'
+import { Wine, BookOpen, Users, MapPin, MessageCircle, ArrowRight } from 'lucide-react'
 import { useBranch } from '@/context/BranchContext'
 import { useEvents } from '@/hooks/useEvents'
+import { NewsletterSection } from '@/components/NewsletterSection'
 import { formatDate, formatPrice } from '@/lib/utils'
 
 export function BranchHome() {
@@ -15,17 +16,24 @@ export function BranchHome() {
       {/* Branch hero */}
       <section className="relative flex min-h-[60vh] items-end overflow-hidden">
         <div
-          className="absolute inset-0"
-          style={{ background: 'linear-gradient(135deg, #2c1810 0%, #7b1c35 50%, #c4956a 100%)' }}
+          className="absolute inset-0 bg-cover bg-center"
+          style={branch.image_url
+            ? { backgroundImage: `url(${branch.image_url})` }
+            : { background: 'linear-gradient(135deg, #2c1810 0%, #7b1c35 50%, #c4956a 100%)' }
+          }
         />
-        <div
-          className="absolute inset-0 opacity-15"
-          style={{
-            backgroundImage:
-              'radial-gradient(circle at 20% 80%, #fff 1px, transparent 1px), radial-gradient(circle at 80% 20%, #fff 1px, transparent 1px)',
-            backgroundSize: '60px 60px',
-          }}
-        />
+        {branch.image_url ? (
+          <div className="absolute inset-0 bg-black/55" />
+        ) : (
+          <div
+            className="absolute inset-0 opacity-15"
+            style={{
+              backgroundImage:
+                'radial-gradient(circle at 20% 80%, #fff 1px, transparent 1px), radial-gradient(circle at 80% 20%, #fff 1px, transparent 1px)',
+              backgroundSize: '60px 60px',
+            }}
+          />
+        )}
         <div className="relative mx-auto w-full max-w-7xl px-4 pb-16 sm:px-6 lg:px-8">
           <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#c4956a]">
             Lo de Granados
@@ -49,7 +57,7 @@ export function BranchHome() {
                 rel="noreferrer"
                 className="flex items-center gap-1.5 text-sm text-white/60 hover:text-white/90 transition-colors"
               >
-                <Phone size={13} />
+                <MessageCircle size={13} />
                 {branch.phone}
               </a>
             )}
@@ -58,9 +66,8 @@ export function BranchHome() {
                 href={`https://instagram.com/${branch.instagram.replace('@', '')}`}
                 target="_blank"
                 rel="noreferrer"
-                className="flex items-center gap-1.5 text-sm text-white/60 hover:text-white/90 transition-colors"
+                className="text-sm text-white/60 hover:text-white/90 transition-colors"
               >
-                <Instagram size={13} />
                 {branch.instagram}
               </a>
             )}
@@ -190,6 +197,8 @@ export function BranchHome() {
           </div>
         </section>
       )}
+
+      <NewsletterSection />
     </div>
   )
 }

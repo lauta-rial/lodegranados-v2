@@ -1,30 +1,44 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, CalendarDays, BookOpen, Users, MessageSquare, LogOut } from 'lucide-react'
+import { LayoutDashboard, CalendarDays, BookOpen, Users, MessageSquare, MapPin, Mail, LogOut } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/AuthContext'
+import { useAdmin } from '@/context/AdminContext'
 
-const links = [
-  { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', end: true },
-  { to: '/admin/catas', icon: CalendarDays, label: 'Catas' },
-  { to: '/admin/cursos', icon: BookOpen, label: 'Cursos' },
-  { to: '/admin/club', icon: Users, label: 'Club' },
-  { to: '/admin/consultas', icon: MessageSquare, label: 'Consultas' },
+const allLinks = [
+  { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', end: true, superAdminOnly: false },
+  { to: '/admin/catas', icon: CalendarDays, label: 'Catas', end: false, superAdminOnly: false },
+  { to: '/admin/cursos', icon: BookOpen, label: 'Cursos', end: false, superAdminOnly: false },
+  { to: '/admin/club', icon: Users, label: 'Club', end: false, superAdminOnly: false },
+  { to: '/admin/consultas', icon: MessageSquare, label: 'Consultas', end: false, superAdminOnly: false },
+  { to: '/admin/sucursales', icon: MapPin, label: 'Sucursales', end: false, superAdminOnly: true },
+  { to: '/admin/newsletter', icon: Mail, label: 'Newsletter', end: false, superAdminOnly: true },
 ]
 
 export function Sidebar() {
-  const { signOut } = useAuth()
+  const { signOut, user } = useAuth()
+  const { isSuperAdmin } = useAdmin()
   const navigate = useNavigate()
+  const email = user?.email ?? ''
+
+  const links = allLinks.filter(l => !l.superAdminOnly || isSuperAdmin)
 
   async function handleLogout() {
     await signOut()
-    navigate('/login')
+    navigate('/admin')
   }
 
   return (
     <aside className="flex h-full w-56 flex-col border-r border-[var(--color-parchment)] bg-white">
       <div className="border-b border-[var(--color-parchment)] px-5 py-5">
         <p className="font-display text-lg font-semibold text-[var(--color-dark)]">Lo de Granados</p>
-        <p className="text-xs text-[var(--color-muted)]">Panel de administración</p>
+        <p className="text-xs text-[var(--color-muted)]">
+          {isSuperAdmin ? 'Super Admin' : 'Administración'}
+        </p>
+        {email && (
+          <p title={email} className="mt-0.5 max-w-full truncate text-xs text-[var(--color-muted)] cursor-default">
+            {email}
+          </p>
+        )}
       </div>
 
       <nav className="flex-1 space-y-0.5 p-3">

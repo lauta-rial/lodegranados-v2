@@ -24,6 +24,9 @@ import { AdminCatas } from '@/pages/admin/AdminCatas'
 import { AdminCursos } from '@/pages/admin/AdminCursos'
 import { AdminClub } from '@/pages/admin/AdminClub'
 import { AdminConsultas } from '@/pages/admin/AdminConsultas'
+import { AdminSucursales } from '@/pages/admin/AdminSucursales'
+import { AdminNewsletter } from '@/pages/admin/AdminNewsletter'
+import { AdminScanner } from '@/pages/admin/AdminScanner'
 import { ClubPlan } from '@/pages/ClubPlan'
 import { PagoExitoso } from '@/pages/PagoExitoso'
 import { PagoFallido } from '@/pages/PagoFallido'
@@ -67,6 +70,9 @@ export default function App() {
             <Route path="cursos" element={<AdminCursos />} />
             <Route path="club" element={<AdminClub />} />
             <Route path="consultas" element={<AdminConsultas />} />
+            <Route path="sucursales" element={<AdminSucursales />} />
+            <Route path="newsletter" element={<AdminNewsletter />} />
+            <Route path="scanner/:eventId" element={<AdminScanner />} />
           </Route>
         </Routes>
       </AuthProvider>

@@ -60,6 +60,12 @@ export function ClubPlan() {
         <ArrowLeft size={14} /> Volver al Club
       </Link>
 
+      {plan.image_url && (
+        <div className="mb-10 h-52 w-full overflow-hidden rounded-2xl">
+          <img src={plan.image_url} alt={plan.name} className="h-full w-full object-cover" />
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-12 lg:grid-cols-5">
         {/* Left — plan info */}
         <div className="lg:col-span-3">

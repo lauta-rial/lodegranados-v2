@@ -17,16 +17,18 @@ export function CataDetail() {
   const { user } = useAuth()
   const { checkout, loading: checkoutLoading, error: checkoutError } = useCheckout()
   const [modalOpen, setModalOpen] = useState(false)
+  const [spots, setSpots] = useState(1)
 
   if (isLoading) return <CataDetailLoading />
   if (error || !event) return <CataDetailError />
 
   const soldOut = event.available_spots === 0
+  const maxSpots = Math.min(event.available_spots ?? 1, 10)
 
   function handleReservar() {
     if (!event) return
     if (user) {
-      checkout({ type: 'event', id: event.id, title: event.title, price: event.price ?? 0 })
+      checkout({ type: 'event', id: event.id, title: event.title, price: event.price ?? 0, spots })
     } else {
       setModalOpen(true)
     }
@@ -34,7 +36,7 @@ export function CataDetail() {
 
   function handleModalConfirm(name: string, email: string) {
     if (!event) return
-    checkout({ type: 'event', id: event.id, title: event.title, price: event.price ?? 0, payerName: name, payerEmail: email })
+    checkout({ type: 'event', id: event.id, title: event.title, price: event.price ?? 0, spots, payerName: name, payerEmail: email })
   }
 
   return (
@@ -111,12 +113,33 @@ export function CataDetail() {
               </div>
             ) : (
               <>
+                <div className="mt-6 flex items-center justify-between">
+                  <span className="text-sm text-[var(--color-dark-muted)]">Entradas</span>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => setSpots(s => Math.max(1, s - 1))}
+                      disabled={spots <= 1}
+                      className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--color-parchment)] text-[var(--color-dark)] transition-colors hover:bg-[var(--color-cream-dark)] disabled:opacity-40"
+                    >−</button>
+                    <span className="w-4 text-center text-sm font-semibold text-[var(--color-dark)]">{spots}</span>
+                    <button
+                      onClick={() => setSpots(s => Math.min(maxSpots, s + 1))}
+                      disabled={spots >= maxSpots}
+                      className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--color-parchment)] text-[var(--color-dark)] transition-colors hover:bg-[var(--color-cream-dark)] disabled:opacity-40"
+                    >+</button>
+                  </div>
+                </div>
+                {event.price != null && spots > 1 && (
+                  <p className="mt-2 text-right text-sm text-[var(--color-muted)]">
+                    Total: <span className="font-semibold text-[var(--color-wine)]">{formatPrice(event.price * spots)}</span>
+                  </p>
+                )}
                 <button
                   onClick={handleReservar}
                   disabled={checkoutLoading}
-                  className="mt-6 h-12 w-full rounded-full bg-[var(--color-wine)] text-sm font-medium text-white transition-colors hover:bg-[var(--color-wine-dark)] disabled:cursor-not-allowed disabled:opacity-60"
+                  className="mt-4 h-12 w-full rounded-full bg-[var(--color-wine)] text-sm font-medium text-white transition-colors hover:bg-[var(--color-wine-dark)] disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {checkoutLoading ? 'Redirigiendo…' : 'Reservar mi lugar'}
+                  {checkoutLoading ? 'Redirigiendo…' : spots > 1 ? `Reservar ${spots} lugares` : 'Reservar mi lugar'}
                 </button>
                 {checkoutError && (
                   <p className="mt-2 text-xs text-red-600">{checkoutError}</p>
@@ -157,6 +180,7 @@ export function CataDetail() {
         onConfirm={handleModalConfirm}
         title={event.title}
         price={event.price}
+        spots={spots}
         loading={checkoutLoading}
         error={checkoutError}
       />

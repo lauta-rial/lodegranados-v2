@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { CalendarDays, BookOpen, Wine, User, Check, Loader2 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { supabase } from '@/lib/supabase'
+import { useBranches } from '@/hooks/useBranches'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { formatDate, formatPrice } from '@/lib/utils'
 import { Link } from 'react-router-dom'
@@ -184,6 +185,9 @@ function SubscriptionSection({ userId }: { userId: string }) {
       return data
     },
   })
+  const { data: branches } = useBranches()
+  const slugForId = (id: string | null | undefined) =>
+    branches?.find((b) => b.id === id)?.slug ?? ''
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const plan = (data as any)?.plans
@@ -198,7 +202,7 @@ function SubscriptionSection({ userId }: { userId: string }) {
       {isLoading ? (
         <Skeleton className="h-24 w-full rounded-2xl" />
       ) : data ? (
-        <Link to={`/club/${data.plan_id}`} className="flex items-center justify-between rounded-2xl border border-[var(--color-wine)]/20 bg-[var(--color-wine)]/5 p-5 hover:border-[var(--color-wine)]/40 hover:shadow-sm transition-all">
+        <Link to={`/${slugForId(data.branch_id)}/club/${data.plan_id}`} className="flex items-center justify-between rounded-2xl border border-[var(--color-wine)]/20 bg-[var(--color-wine)]/5 p-5 hover:border-[var(--color-wine)]/40 hover:shadow-sm transition-all">
           <div className="flex items-center gap-3">
             {plan?.emoji && <span className="text-2xl">{plan.emoji}</span>}
             <div>
@@ -216,7 +220,7 @@ function SubscriptionSection({ userId }: { userId: string }) {
         <div className="rounded-2xl border border-[var(--color-parchment)] bg-[var(--color-cream-dark)] p-6 text-center">
           <p className="text-sm text-[var(--color-dark-muted)]">No tenés ninguna suscripción activa.</p>
           <Link
-            to="/club"
+            to="/"
             className="mt-3 inline-flex h-9 items-center rounded-full bg-[var(--color-wine)] px-5 text-sm font-medium text-white hover:bg-[var(--color-wine-dark)] transition-colors"
           >
             Ver planes del Club
@@ -228,12 +232,17 @@ function SubscriptionSection({ userId }: { userId: string }) {
 }
 
 function ReservationsSection({ userId }: { userId: string }) {
+  const { data: branches } = useBranches()
+  const slugForId = (id: string | null | undefined) =>
+    branches?.find((b) => b.id === id)?.slug ?? ''
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+
   const { data, isLoading } = useQuery({
     queryKey: ['my-registrations', userId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('registrations')
-        .select('*, events(title, date, time, location)')
+        .select('*, events(title, date, time, location, branch_id), tickets(token, validated_at)')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
       if (error) throw error
@@ -244,6 +253,8 @@ function ReservationsSection({ userId }: { userId: string }) {
         event_date: r.events?.date,
         event_time: r.events?.time,
         event_location: r.events?.location,
+        event_branch_id: r.events?.branch_id,
+        tickets: (r.tickets ?? []) as { token: string; validated_at: string | null }[],
       }))
     },
   })
@@ -258,21 +269,66 @@ function ReservationsSection({ userId }: { userId: string }) {
       {isLoading ? (
         <div className="space-y-3">{[...Array(2)].map((_, i) => <Skeleton key={i} className="h-20 w-full rounded-2xl" />)}</div>
       ) : !data?.length ? (
-        <EmptyState label="No tenés reservas todavía." link="/catas" linkLabel="Ver próximas catas" />
+        <EmptyState label="No tenés reservas todavía." link="/" linkLabel="Ver próximas catas" />
       ) : (
         <div className="space-y-3">
           {data.map((r) => (
-            <Link key={r.id} to={`/catas/${r.event_id}`} className="flex items-center justify-between rounded-2xl border border-[var(--color-parchment)] bg-white p-4 hover:border-[var(--color-wine)]/30 hover:shadow-sm transition-all">
-              <div>
-                <p className="font-medium text-[var(--color-dark)]">{r.event_title}</p>
-                <p className="mt-0.5 text-sm text-[var(--color-muted)] capitalize">
-                  {r.event_date ? formatDate(r.event_date) : '—'}
-                  {r.event_time ? ` · ${r.event_time.slice(0, 5)} hs` : ''}
-                </p>
-                {r.event_location && <p className="text-xs text-[var(--color-muted)]">{r.event_location}</p>}
+            <div key={r.id} className="rounded-2xl border border-[var(--color-parchment)] bg-white overflow-hidden">
+              <div className="flex items-center justify-between p-4">
+                <Link to={`/${slugForId(r.event_branch_id)}/catas/${r.event_id}`} className="flex-1 min-w-0 hover:opacity-80 transition-opacity">
+                  <p className="font-medium text-[var(--color-dark)] truncate">{r.event_title}</p>
+                  <p className="mt-0.5 text-sm text-[var(--color-muted)] capitalize">
+                    {r.event_date ? formatDate(r.event_date) : '—'}
+                    {r.event_time ? ` · ${r.event_time.slice(0, 5)} hs` : ''}
+                  </p>
+                  {r.event_location && <p className="text-xs text-[var(--color-muted)]">{r.event_location}</p>}
+                </Link>
+                <div className="flex items-center gap-2 ml-3 shrink-0">
+                  <AttendanceBadge attended={r.attended} />
+                  {r.tickets.length > 0 && (
+                    <button
+                      onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}
+                      className="flex items-center gap-1 rounded-lg border border-[var(--color-parchment)] px-2.5 py-1 text-xs font-medium text-[var(--color-wine)] hover:bg-[var(--color-wine)]/5 transition-colors"
+                    >
+                      QR {expandedId === r.id ? '▲' : '▼'}
+                    </button>
+                  )}
+                </div>
               </div>
-              <AttendanceBadge attended={r.attended} />
-            </Link>
+
+              {expandedId === r.id && r.tickets.length > 0 && (
+                <div className="border-t border-[var(--color-parchment)] bg-[var(--color-cream)] px-4 py-5">
+                  <p className="mb-4 text-center text-xs font-semibold uppercase tracking-wider text-[var(--color-muted)]">
+                    {r.tickets.length > 1 ? `${r.tickets.length} entradas` : 'Tu entrada'} — mostrá este QR en el ingreso
+                  </p>
+                  <div className={`flex flex-wrap justify-center gap-6`}>
+                    {r.tickets.map((ticket: { token: string; validated_at: string | null }, i: number) => (
+                      <div key={ticket.token} className="flex flex-col items-center gap-2">
+                        {r.tickets.length > 1 && (
+                          <span className="text-xs font-semibold text-[var(--color-wine)]">Entrada {i + 1}</span>
+                        )}
+                        <img
+                          src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${ticket.token}&bgcolor=ffffff&color=6b2737&margin=8`}
+                          alt={`QR entrada ${i + 1}`}
+                          width={180}
+                          height={180}
+                          className="rounded-xl border border-[var(--color-parchment)]"
+                        />
+                        {ticket.validated_at ? (
+                          <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
+                            Validada
+                          </span>
+                        ) : (
+                          <span className="rounded-full bg-[var(--color-cream-dark)] px-2.5 py-0.5 text-xs font-medium text-[var(--color-muted)]">
+                            Pendiente
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           ))}
         </div>
       )}
@@ -281,12 +337,16 @@ function ReservationsSection({ userId }: { userId: string }) {
 }
 
 function EnrollmentsSection({ userId }: { userId: string }) {
+  const { data: branches } = useBranches()
+  const slugForId = (id: string | null | undefined) =>
+    branches?.find((b) => b.id === id)?.slug ?? ''
+
   const { data, isLoading } = useQuery({
     queryKey: ['my-enrollments', userId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('enrollments')
-        .select('*, courses(title, start_date, instructor_name)')
+        .select('*, courses(title, start_date, instructor_name, branch_id)')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
       if (error) throw error
@@ -296,6 +356,7 @@ function EnrollmentsSection({ userId }: { userId: string }) {
         course_title: e.courses?.title ?? '—',
         course_date: e.courses?.start_date,
         instructor: e.courses?.instructor_name,
+        course_branch_id: e.courses?.branch_id,
       }))
     },
   })
@@ -310,11 +371,11 @@ function EnrollmentsSection({ userId }: { userId: string }) {
       {isLoading ? (
         <div className="space-y-3">{[...Array(2)].map((_, i) => <Skeleton key={i} className="h-20 w-full rounded-2xl" />)}</div>
       ) : !data?.length ? (
-        <EmptyState label="No estás inscripto en ningún curso." link="/cursos" linkLabel="Ver cursos disponibles" />
+        <EmptyState label="No estás inscripto en ningún curso." link="/" linkLabel="Ver cursos disponibles" />
       ) : (
         <div className="space-y-3">
           {data.map((e) => (
-            <Link key={e.id} to={`/cursos/${e.course_id}`} className="flex items-center justify-between rounded-2xl border border-[var(--color-parchment)] bg-white p-4 hover:border-[var(--color-wine)]/30 hover:shadow-sm transition-all">
+            <Link key={e.id} to={`/${slugForId(e.course_branch_id)}/cursos/${e.course_id}`} className="flex items-center justify-between rounded-2xl border border-[var(--color-parchment)] bg-white p-4 hover:border-[var(--color-wine)]/30 hover:shadow-sm transition-all">
               <div>
                 <p className="font-medium text-[var(--color-dark)]">{e.course_title}</p>
                 <p className="mt-0.5 text-sm text-[var(--color-muted)]">

@@ -1,9 +1,12 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, Pencil, Trash2, Check } from 'lucide-react'
+import { Plus, Pencil, Trash2, Check, QrCode } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { Modal } from '@/components/admin/Modal'
 import { FormField, FormActions, fieldClass } from '@/components/admin/AdminFormField'
+import { ImageUpload } from '@/components/admin/ImageUpload'
+import { useAdmin } from '@/context/AdminContext'
 import { StatusBadge } from './AdminDashboard'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { formatDate, formatPrice } from '@/lib/utils'
@@ -44,16 +47,22 @@ export function AdminCatas() {
   )
 }
 
+type EventWithBranch = Event & { branches: { name: string } | null }
+
 function EventsTab() {
   const qc = useQueryClient()
+  const { branchId, isSuperAdmin } = useAdmin()
   const [modal, setModal] = useState<{ open: boolean; event?: Event }>({ open: false })
 
-  const { data: events, isLoading } = useQuery<Event[]>({
-    queryKey: ['admin-events'],
+  const { data: events, isLoading } = useQuery<EventWithBranch[]>({
+    queryKey: ['admin-events', branchId],
     queryFn: async () => {
-      const { data, error } = await supabase.from('events').select('*').order('date', { ascending: true })
+      let q = supabase.from('events').select('*, branches(name)').order('date', { ascending: true })
+      if (branchId) q = q.eq('branch_id', branchId)
+      const { data, error } = await q
       if (error) throw error
-      return data
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (data ?? []) as any as EventWithBranch[]
     },
   })
 
@@ -87,6 +96,7 @@ function EventsTab() {
             <thead className="border-b border-[var(--color-parchment)] bg-[var(--color-cream)]">
               <tr>
                 <th className="px-4 py-3 text-left font-medium text-[var(--color-muted)]">Evento</th>
+                {isSuperAdmin && <th className="px-4 py-3 text-left font-medium text-[var(--color-muted)]">Sucursal</th>}
                 <th className="px-4 py-3 text-left font-medium text-[var(--color-muted)]">Fecha</th>
                 <th className="px-4 py-3 text-left font-medium text-[var(--color-muted)]">Lugares</th>
                 <th className="px-4 py-3 text-left font-medium text-[var(--color-muted)]">Precio</th>
@@ -98,6 +108,7 @@ function EventsTab() {
               {events.map((ev) => (
                 <tr key={ev.id} className="hover:bg-[var(--color-cream)]/50">
                   <td className="px-4 py-3 font-medium text-[var(--color-dark)]">{ev.title}</td>
+                  {isSuperAdmin && <td className="px-4 py-3 text-[var(--color-dark-muted)]">{ev.branches?.name ?? '—'}</td>}
                   <td className="px-4 py-3 text-[var(--color-dark-muted)] capitalize">{formatDate(ev.date)}</td>
                   <td className="px-4 py-3 text-[var(--color-dark-muted)]">{ev.available_spots}/{ev.total_spots}</td>
                   <td className="px-4 py-3 text-[var(--color-dark-muted)]">{ev.price ? formatPrice(ev.price) : '—'}</td>
@@ -106,6 +117,9 @@ function EventsTab() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-2">
+                      <Link to={`/admin/scanner/${ev.id}`} className="rounded p-1 text-[var(--color-muted)] hover:text-[var(--color-wine)] transition-colors" title="Escanear entradas">
+                        <QrCode size={14} />
+                      </Link>
                       <button onClick={() => setModal({ open: true, event: ev })} className="rounded p-1 text-[var(--color-muted)] hover:text-[var(--color-dark)] transition-colors">
                         <Pencil size={14} />
                       </button>
@@ -124,6 +138,7 @@ function EventsTab() {
       <EventModal
         open={modal.open}
         event={modal.event}
+        branchId={branchId}
         onClose={() => setModal({ open: false })}
         onSaved={() => {
           setModal({ open: false })
@@ -136,12 +151,14 @@ function EventsTab() {
   )
 }
 
-function EventModal({ open, event, onClose, onSaved }: {
+function EventModal({ open, event, branchId, onClose, onSaved }: {
   open: boolean
   event?: Event
+  branchId: string | null
   onClose: () => void
   onSaved: () => void
 }) {
+  const { isSuperAdmin } = useAdmin()
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState({
     title: event?.title ?? '',
@@ -152,6 +169,18 @@ function EventModal({ open, event, onClose, onSaved }: {
     total_spots: event?.total_spots?.toString() ?? '',
     available_spots: event?.available_spots?.toString() ?? '',
     price: event?.price?.toString() ?? '',
+    image_url: event?.image_url ?? '',
+    branch_id: event?.branch_id ?? '',
+  })
+
+  const { data: branches } = useQuery<{ id: string; name: string }[]>({
+    queryKey: ['branches-list'],
+    queryFn: async () => {
+      const { data } = await supabase.from('branches').select('id, name').order('name')
+      return data ?? []
+    },
+    enabled: isSuperAdmin,
+    staleTime: Infinity,
   })
 
   // Reset form when event changes
@@ -160,6 +189,7 @@ function EventModal({ open, event, onClose, onSaved }: {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
+    const resolvedBranchId = isSuperAdmin ? (form.branch_id || null) : (branchId ?? null)
     const payload = {
       title: form.title,
       description: form.description || null,
@@ -169,7 +199,9 @@ function EventModal({ open, event, onClose, onSaved }: {
       total_spots: parseInt(form.total_spots),
       available_spots: parseInt(form.available_spots),
       price: form.price ? parseInt(form.price) : null,
+      image_url: form.image_url || null,
       active: true,
+      branch_id: resolvedBranchId,
     }
     const { error } = event?.id
       ? await supabase.from('events').update(payload).eq('id', event.id)
@@ -184,6 +216,14 @@ function EventModal({ open, event, onClose, onSaved }: {
         <FormField label="Título">
           <input required className={fieldClass} value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
         </FormField>
+        {isSuperAdmin && (
+          <FormField label="Sucursal">
+            <select className={fieldClass} value={form.branch_id} onChange={e => setForm(f => ({ ...f, branch_id: e.target.value }))}>
+              <option value="">— Sin sucursal —</option>
+              {branches?.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+          </FormField>
+        )}
         <FormField label="Descripción">
           <textarea rows={3} className={`${fieldClass} resize-none`} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
         </FormField>
@@ -209,6 +249,9 @@ function EventModal({ open, event, onClose, onSaved }: {
             <input type="number" min="0" className={fieldClass} value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} />
           </FormField>
         </div>
+        <FormField label="Imagen">
+          <ImageUpload folder="events/" value={form.image_url} onChange={url => setForm(f => ({ ...f, image_url: url }))} dimensions="1200 × 600 px · ratio 2:1" />
+        </FormField>
         <FormActions onCancel={onClose} loading={loading} label={event ? 'Guardar cambios' : 'Crear evento'} />
       </form>
     </Modal>
@@ -217,18 +260,20 @@ function EventModal({ open, event, onClose, onSaved }: {
 
 function RegistrationsTab() {
   const qc = useQueryClient()
-  const { data, isLoading } = useQuery<(Registration & { event_title: string })[]>({
+  const { isSuperAdmin } = useAdmin()
+  const { data, isLoading } = useQuery<(Registration & { event_title: string; event_branch_name: string })[]>({
     queryKey: ['admin-registrations'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('registrations')
-        .select('*, events(title)')
+        .select('*, events(title, branches(name))')
         .order('created_at', { ascending: false })
       if (error) throw error
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return (data ?? []).map((r: any) => ({
         ...r,
         event_title: r.events?.title ?? '—',
+        event_branch_name: r.events?.branches?.name ?? '—',
       }))
     },
   })
@@ -251,6 +296,7 @@ function RegistrationsTab() {
               <th className="px-4 py-3 text-left font-medium text-[var(--color-muted)]">Nombre</th>
               <th className="px-4 py-3 text-left font-medium text-[var(--color-muted)]">Email</th>
               <th className="px-4 py-3 text-left font-medium text-[var(--color-muted)]">Evento</th>
+              {isSuperAdmin && <th className="px-4 py-3 text-left font-medium text-[var(--color-muted)]">Sucursal</th>}
               <th className="px-4 py-3 text-left font-medium text-[var(--color-muted)]">Cupos</th>
               <th className="px-4 py-3 text-left font-medium text-[var(--color-muted)]">Asistió</th>
             </tr>
@@ -261,6 +307,7 @@ function RegistrationsTab() {
                 <td className="px-4 py-3 font-medium text-[var(--color-dark)]">{r.name ?? '—'}</td>
                 <td className="px-4 py-3 text-[var(--color-dark-muted)]">{r.email ?? '—'}</td>
                 <td className="px-4 py-3 text-[var(--color-dark-muted)]">{r.event_title}</td>
+                {isSuperAdmin && <td className="px-4 py-3 text-[var(--color-dark-muted)]">{r.event_branch_name}</td>}
                 <td className="px-4 py-3 text-[var(--color-dark-muted)]">{r.spots ?? 1}</td>
                 <td className="px-4 py-3">
                   <button
