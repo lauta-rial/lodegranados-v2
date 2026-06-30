@@ -27,6 +27,7 @@ export function Empresas() {
         name: form.name,
         email: form.email,
         message: form.message,
+        branch_id: branch?.id ?? null,
         status: 'new',
       })
       if (dbError) throw dbError

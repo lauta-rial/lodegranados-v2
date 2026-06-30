@@ -125,6 +125,11 @@ Deno.serve(async (req) => {
         console.error('DB insert error (registrations):', dbErr.message)
       }
 
+      // Decrement available spots atomically
+      if (reg?.id) {
+        await supabase.rpc('decrement_event_spots', { p_event_id: ref, p_amount: spots })
+      }
+
       // Create one ticket per spot
       let tokensList: string[] = []
       if (reg?.id) {
@@ -179,7 +184,11 @@ Deno.serve(async (req) => {
         payment_id: paymentId ?? null,
         status: 'enrolled',
       })
-      if (dbErr) console.error('DB insert error (enrollments):', dbErr.message)
+      if (dbErr) {
+        console.error('DB insert error (enrollments):', dbErr.message)
+      } else {
+        await supabase.rpc('decrement_course_spots', { p_course_id: ref })
+      }
 
       const html = emailBase(
         'Inscripción confirmada',
