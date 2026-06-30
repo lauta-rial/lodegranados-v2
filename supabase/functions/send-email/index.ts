@@ -96,6 +96,21 @@ Deno.serve(async (req) => {
     }
 
     if (type === 'reservation') {
+      // Idempotency: skip if already processed for this payment
+      if (paymentId) {
+        const { data: existing } = await supabase
+          .from('registrations')
+          .select('id')
+          .eq('event_id', ref)
+          .eq('payment_id', paymentId)
+          .maybeSingle()
+        if (existing) {
+          return new Response(JSON.stringify({ ok: true, skipped: true }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          })
+        }
+      }
+
       // Insert registration
       const { data: reg, error: dbErr } = await supabase.from('registrations').insert({
         event_id: ref,
@@ -141,6 +156,21 @@ Deno.serve(async (req) => {
     }
 
     if (type === 'enrollment') {
+      // Idempotency
+      if (paymentId) {
+        const { data: existing } = await supabase
+          .from('enrollments')
+          .select('id')
+          .eq('course_id', ref)
+          .eq('payment_id', paymentId)
+          .maybeSingle()
+        if (existing) {
+          return new Response(JSON.stringify({ ok: true, skipped: true }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          })
+        }
+      }
+
       const { error: dbErr } = await supabase.from('enrollments').insert({
         course_id: ref,
         user_id: userId ?? null,

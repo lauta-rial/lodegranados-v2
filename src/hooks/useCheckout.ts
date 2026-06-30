@@ -28,6 +28,7 @@ export function useCheckout() {
           title: params.title,
           price: params.price,
           quantity: params.spots ?? 1,
+          userId: user?.id ?? null,
           payerName: params.payerName ?? user?.user_metadata?.full_name ?? '',
           payerEmail: params.payerEmail ?? user?.email ?? '',
           siteUrl: window.location.origin,
