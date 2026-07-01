@@ -15,7 +15,7 @@ export function PagoFallido() {
   const branch = branches?.find((b) => b.slug === branchSlug)
   const waUrl = branch?.phone
     ? `https://wa.me/${branch.phone.replace(/\D/g, '')}`
-    : 'https://wa.me/5492612345678'
+    : 'https://wa.me/5493417478993'
 
   const type = searchParams.get('type')
   const ref = searchParams.get('ref')

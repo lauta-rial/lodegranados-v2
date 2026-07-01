@@ -13,7 +13,7 @@ export function PagoPendiente() {
   const branch = branches?.find((b) => b.slug === branchSlug)
   const waUrl = branch?.phone
     ? `https://wa.me/${branch.phone.replace(/\D/g, '')}`
-    : 'https://wa.me/5492612345678'
+    : 'https://wa.me/5493417478993'
 
   return (
     <div className="mx-auto max-w-lg px-4 py-24 text-center">
