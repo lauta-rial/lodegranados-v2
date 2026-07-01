@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { AuthProvider } from '@/context/AuthContext'
 import { Layout } from '@/components/layout/Layout'
@@ -19,18 +20,19 @@ import { Register } from '@/pages/Register'
 import { ForgotPassword } from '@/pages/ForgotPassword'
 import { ResetPassword } from '@/pages/ResetPassword'
 import { MiCuenta } from '@/pages/MiCuenta'
-import { AdminDashboard } from '@/pages/admin/AdminDashboard'
-import { AdminCatas } from '@/pages/admin/AdminCatas'
-import { AdminCursos } from '@/pages/admin/AdminCursos'
-import { AdminClub } from '@/pages/admin/AdminClub'
-import { AdminConsultas } from '@/pages/admin/AdminConsultas'
-import { AdminSucursales } from '@/pages/admin/AdminSucursales'
-import { AdminNewsletter } from '@/pages/admin/AdminNewsletter'
-import { AdminScanner } from '@/pages/admin/AdminScanner'
 import { ClubPlan } from '@/pages/ClubPlan'
 import { PagoExitoso } from '@/pages/PagoExitoso'
 import { PagoFallido } from '@/pages/PagoFallido'
 import { PagoPendiente } from '@/pages/PagoPendiente'
+
+const AdminDashboard = lazy(() => import('@/pages/admin/AdminDashboard').then(m => ({ default: m.AdminDashboard })))
+const AdminCatas = lazy(() => import('@/pages/admin/AdminCatas').then(m => ({ default: m.AdminCatas })))
+const AdminCursos = lazy(() => import('@/pages/admin/AdminCursos').then(m => ({ default: m.AdminCursos })))
+const AdminClub = lazy(() => import('@/pages/admin/AdminClub').then(m => ({ default: m.AdminClub })))
+const AdminConsultas = lazy(() => import('@/pages/admin/AdminConsultas').then(m => ({ default: m.AdminConsultas })))
+const AdminSucursales = lazy(() => import('@/pages/admin/AdminSucursales').then(m => ({ default: m.AdminSucursales })))
+const AdminNewsletter = lazy(() => import('@/pages/admin/AdminNewsletter').then(m => ({ default: m.AdminNewsletter })))
+const AdminScanner = lazy(() => import('@/pages/admin/AdminScanner').then(m => ({ default: m.AdminScanner })))
 
 export default function App() {
   return (
@@ -65,14 +67,14 @@ export default function App() {
 
           {/* Admin panel */}
           <Route path="/admin" element={<AdminLayout />}>
-            <Route index element={<AdminDashboard />} />
-            <Route path="catas" element={<AdminCatas />} />
-            <Route path="cursos" element={<AdminCursos />} />
-            <Route path="club" element={<AdminClub />} />
-            <Route path="consultas" element={<AdminConsultas />} />
-            <Route path="sucursales" element={<AdminSucursales />} />
-            <Route path="newsletter" element={<AdminNewsletter />} />
-            <Route path="scanner/:eventId" element={<AdminScanner />} />
+            <Route index element={<Suspense><AdminDashboard /></Suspense>} />
+            <Route path="catas" element={<Suspense><AdminCatas /></Suspense>} />
+            <Route path="cursos" element={<Suspense><AdminCursos /></Suspense>} />
+            <Route path="club" element={<Suspense><AdminClub /></Suspense>} />
+            <Route path="consultas" element={<Suspense><AdminConsultas /></Suspense>} />
+            <Route path="sucursales" element={<Suspense><AdminSucursales /></Suspense>} />
+            <Route path="newsletter" element={<Suspense><AdminNewsletter /></Suspense>} />
+            <Route path="scanner/:eventId" element={<Suspense><AdminScanner /></Suspense>} />
           </Route>
         </Routes>
       </AuthProvider>
