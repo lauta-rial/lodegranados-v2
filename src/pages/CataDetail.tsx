@@ -168,7 +168,7 @@ export function CataDetail() {
               disabled={checkoutLoading}
               className="h-11 rounded-full bg-[var(--color-wine)] px-6 text-sm font-medium text-white transition-colors hover:bg-[var(--color-wine-dark)] disabled:opacity-60"
             >
-              {checkoutLoading ? 'Redirigiendo…' : 'Reservar lugar'}
+              {checkoutLoading ? 'Redirigiendo…' : spots > 1 ? `Reservar ${spots} lugares` : 'Reservar mi lugar'}
             </button>
           </div>
         </div>

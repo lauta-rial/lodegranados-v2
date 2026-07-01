@@ -171,6 +171,7 @@ function EventModal({ open, event, branchId, onClose, onSaved }: {
     price: event?.price?.toString() ?? '',
     image_url: event?.image_url ?? '',
     branch_id: event?.branch_id ?? '',
+    active: event?.active ?? true,
   })
 
   const { data: branches } = useQuery<{ id: string; name: string }[]>({
@@ -200,7 +201,7 @@ function EventModal({ open, event, branchId, onClose, onSaved }: {
       available_spots: parseInt(form.available_spots),
       price: form.price ? parseInt(form.price) : null,
       image_url: form.image_url || null,
-      active: true,
+      active: form.active,
       branch_id: resolvedBranchId,
     }
     const { error } = event?.id
@@ -252,6 +253,10 @@ function EventModal({ open, event, branchId, onClose, onSaved }: {
         <FormField label="Imagen">
           <ImageUpload folder="events/" value={form.image_url} onChange={url => setForm(f => ({ ...f, image_url: url }))} dimensions="1200 × 600 px · ratio 2:1" />
         </FormField>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={form.active} onChange={e => setForm(f => ({ ...f, active: e.target.checked }))} className="h-4 w-4 rounded border-[var(--color-parchment)] accent-[var(--color-wine)]" />
+          <span className="text-[var(--color-dark)]">Evento activo (visible en el sitio)</span>
+        </label>
         <FormActions onCancel={onClose} loading={loading} label={event ? 'Guardar cambios' : 'Crear evento'} />
       </form>
     </Modal>
@@ -260,14 +265,23 @@ function EventModal({ open, event, branchId, onClose, onSaved }: {
 
 function RegistrationsTab() {
   const qc = useQueryClient()
-  const { isSuperAdmin } = useAdmin()
+  const { branchId, isSuperAdmin } = useAdmin()
   const { data, isLoading } = useQuery<(Registration & { event_title: string; event_branch_name: string })[]>({
-    queryKey: ['admin-registrations'],
+    queryKey: ['admin-registrations', branchId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let q = supabase
         .from('registrations')
         .select('*, events(title, branches(name))')
         .order('created_at', { ascending: false })
+
+      if (branchId) {
+        const { data: eventData } = await supabase.from('events').select('id').eq('branch_id', branchId)
+        const eventIds = (eventData ?? []).map((e) => e.id)
+        if (eventIds.length === 0) return []
+        q = q.in('event_id', eventIds)
+      }
+
+      const { data, error } = await q
       if (error) throw error
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return (data ?? []).map((r: any) => ({

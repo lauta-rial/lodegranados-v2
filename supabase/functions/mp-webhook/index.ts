@@ -9,7 +9,7 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
 async function validateSignature(req: Request, paymentId: string | number): Promise<boolean> {
-  if (!MP_WEBHOOK_SECRET) return true // skip validation if secret not configured
+  if (!MP_WEBHOOK_SECRET) return false // fail closed if secret not configured
 
   const signature = req.headers.get('x-signature') ?? ''
   const requestId = req.headers.get('x-request-id') ?? ''
@@ -124,13 +124,15 @@ Deno.serve(async (req) => {
           spots: pending.spots ?? 1,
           price: pending.price ? `$${(pending.price).toLocaleString('es-AR')}` : undefined,
           priceAmount: pending.price ?? null,
-          siteUrl: 'https://lodegranados-v2-chi.vercel.app',
+          siteUrl: Deno.env.get('SITE_URL') ?? 'https://lodegranados-v2-chi.vercel.app',
         },
       }),
     })
 
     if (!emailRes.ok) {
       console.error('send-email error:', await emailRes.text())
+      // Don't stamp processed_at — let MercadoPago retry the webhook
+      return new Response('ok', { status: 200 })
     }
 
     await supabase

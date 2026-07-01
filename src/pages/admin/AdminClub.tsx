@@ -138,6 +138,7 @@ function PlanModal({ open, plan, branchId, onClose, onSaved }: { open: boolean; 
     features: Array.isArray(plan?.features) ? (plan.features as string[]).join('\n') : '',
     image_url: plan?.image_url ?? '',
     branch_id: plan?.branch_id ?? '',
+    active: plan?.active ?? true,
   })
 
   const { data: branches } = useQuery<{ id: string; name: string }[]>({
@@ -162,7 +163,7 @@ function PlanModal({ open, plan, branchId, onClose, onSaved }: { open: boolean; 
       highlighted: form.highlighted,
       features: form.features ? form.features.split('\n').filter(Boolean) : null,
       image_url: form.image_url || null,
-      active: true,
+      active: form.active,
       branch_id: resolvedBranchId,
     }
     const { error } = plan?.id
@@ -196,10 +197,16 @@ function PlanModal({ open, plan, branchId, onClose, onSaved }: { open: boolean; 
         <FormField label="Beneficios (uno por línea)">
           <textarea rows={4} className={`${fieldClass} resize-none`} value={form.features} onChange={e => setForm(f => ({ ...f, features: e.target.value }))} placeholder="2 botellas por mes&#10;Guía de maridaje&#10;..." />
         </FormField>
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={form.highlighted} onChange={e => setForm(f => ({ ...f, highlighted: e.target.checked }))} className="rounded" />
-          <span className="text-[var(--color-dark)]">Marcar como destacado</span>
-        </label>
+        <div className="flex flex-col gap-2">
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={form.highlighted} onChange={e => setForm(f => ({ ...f, highlighted: e.target.checked }))} className="h-4 w-4 rounded border-[var(--color-parchment)] accent-[var(--color-wine)]" />
+            <span className="text-[var(--color-dark)]">Marcar como destacado</span>
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={form.active} onChange={e => setForm(f => ({ ...f, active: e.target.checked }))} className="h-4 w-4 rounded border-[var(--color-parchment)] accent-[var(--color-wine)]" />
+            <span className="text-[var(--color-dark)]">Plan activo (visible en el sitio)</span>
+          </label>
+        </div>
         <FormField label="Imagen">
           <ImageUpload folder="plans/" value={form.image_url} onChange={url => setForm(f => ({ ...f, image_url: url }))} dimensions="800 × 600 px · ratio 4:3" />
         </FormField>
@@ -211,13 +218,14 @@ function PlanModal({ open, plan, branchId, onClose, onSaved }: { open: boolean; 
 
 function SubscriptionsTab() {
   const [statusFilter, setStatusFilter] = useState('all')
-  const { isSuperAdmin } = useAdmin()
+  const { branchId, isSuperAdmin } = useAdmin()
 
   const { data, isLoading } = useQuery<(Subscription & { plan_name: string; branch_name: string })[]>({
-    queryKey: ['admin-subscriptions', statusFilter],
+    queryKey: ['admin-subscriptions', statusFilter, branchId],
     queryFn: async () => {
       let q = supabase.from('subscriptions').select('*, plans(name), branches(name)').order('created_at', { ascending: false })
       if (statusFilter !== 'all') q = q.eq('status', statusFilter)
+      if (branchId) q = q.eq('branch_id', branchId)
       const { data, error } = await q
       if (error) throw error
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

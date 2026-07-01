@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
+import { ArrowLeft, CheckCircle, XCircle, AlertCircle, CameraOff } from 'lucide-react'
 import { Html5Qrcode } from 'html5-qrcode'
 import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/context/AuthContext'
 import { useQuery } from '@tanstack/react-query'
 import type { Event } from '@/types/database'
 
@@ -15,11 +16,23 @@ type ScanResult =
 export function AdminScanner() {
   const { eventId } = useParams<{ eventId: string }>()
   const navigate = useNavigate()
+  const { user } = useAuth()
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const [scanning, setScanning] = useState(false)
+  const [cameraError, setCameraError] = useState<string | null>(null)
   const [result, setResult] = useState<ScanResult>(null)
-  const [processing, setProcessing] = useState(false)
+  const processingRef = useRef(false)
   const resultTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const eventIdRef = useRef(eventId)
+  const userIdRef = useRef(user?.id)
+
+  useEffect(() => {
+    eventIdRef.current = eventId
+  }, [eventId])
+
+  useEffect(() => {
+    userIdRef.current = user?.id
+  }, [user?.id])
 
   const { data: event } = useQuery<Event>({
     queryKey: ['event', eventId],
@@ -40,7 +53,14 @@ export function AdminScanner() {
       { fps: 10, qrbox: { width: 250, height: 250 } },
       onScan,
       () => {},
-    ).then(() => setScanning(true)).catch(console.error)
+    ).then(() => setScanning(true)).catch((err: Error) => {
+      console.error('Camera error:', err)
+      if (err?.name === 'NotAllowedError' || err?.message?.toLowerCase().includes('permission')) {
+        setCameraError('Permiso de cámara denegado. Habilitá la cámara en la configuración del navegador.')
+      } else {
+        setCameraError('No se pudo iniciar la cámara. Verificá que tu dispositivo tenga una cámara disponible.')
+      }
+    })
 
     return () => {
       qr.stop().catch(() => {})
@@ -49,15 +69,15 @@ export function AdminScanner() {
   }, [])
 
   async function onScan(token: string) {
-    if (processing) return
-    setProcessing(true)
+    if (processingRef.current) return
+    processingRef.current = true
 
     try {
       const { data: ticket, error } = await supabase
         .from('tickets')
         .select('*, registrations(name, email, spots)')
         .eq('token', token)
-        .eq('event_id', eventId!)
+        .eq('event_id', eventIdRef.current!)
         .maybeSingle()
 
       if (error || !ticket) {
@@ -71,13 +91,11 @@ export function AdminScanner() {
           name: reg?.name ?? '—',
         })
       } else {
-        // Mark as validated
         await supabase
           .from('tickets')
-          .update({ validated_at: new Date().toISOString() })
+          .update({ validated_at: new Date().toISOString(), validated_by: userIdRef.current ?? null })
           .eq('token', token)
 
-        // Count ticket index among sibling tickets for the same registration
         const { data: siblings } = await supabase
           .from('tickets')
           .select('id, created_at')
@@ -104,7 +122,7 @@ export function AdminScanner() {
     if (resultTimerRef.current) clearTimeout(resultTimerRef.current)
     resultTimerRef.current = setTimeout(() => {
       setResult(null)
-      setProcessing(false)
+      processingRef.current = false
     }, 4000)
   }
 
@@ -126,26 +144,38 @@ export function AdminScanner() {
 
       {/* Camera */}
       <div className="flex flex-1 flex-col items-center justify-center px-4">
-        <div className="relative w-full max-w-xs">
-          <div
-            id="qr-reader"
-            className="w-full overflow-hidden rounded-2xl"
-            style={{ aspectRatio: '1' }}
-          />
-          {!scanning && (
-            <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-black/60">
-              <p className="text-sm text-white/70">Iniciando cámara…</p>
+        {cameraError ? (
+          <div className="flex flex-col items-center gap-4 text-center">
+            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-red-500/20">
+              <CameraOff size={36} className="text-red-400" />
             </div>
-          )}
-          {/* Corner guides */}
-          {scanning && !result && (
-            <>
+            <p className="text-sm text-white/70 max-w-xs">{cameraError}</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="mt-2 h-10 rounded-full bg-white/10 px-5 text-sm font-medium text-white hover:bg-white/20 transition-colors"
+            >
+              Reintentar
+            </button>
+          </div>
+        ) : (
+          <div className="relative w-full max-w-xs">
+            <div
+              id="qr-reader"
+              className="w-full overflow-hidden rounded-2xl"
+              style={{ aspectRatio: '1' }}
+            />
+            {!scanning && (
+              <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-black/60">
+                <p className="text-sm text-white/70">Iniciando cámara…</p>
+              </div>
+            )}
+            {scanning && !result && (
               <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
                 <div className="h-48 w-48 rounded-xl border-2 border-white/60" />
               </div>
-            </>
-          )}
-        </div>
+            )}
+          </div>
+        )}
 
         {/* Result overlay */}
         {result && (
@@ -188,7 +218,7 @@ export function AdminScanner() {
           </div>
         )}
 
-        {!result && scanning && (
+        {!result && scanning && !cameraError && (
           <p className="mt-6 text-sm text-white/40">Apuntá la cámara al QR de la entrada</p>
         )}
       </div>

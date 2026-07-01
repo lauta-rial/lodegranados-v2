@@ -1,15 +1,17 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, Pencil } from 'lucide-react'
+import { Plus, Pencil, Trash2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Modal } from '@/components/admin/Modal'
 import { FormField, FormActions, fieldClass } from '@/components/admin/AdminFormField'
 import { ImageUpload } from '@/components/admin/ImageUpload'
 import { Skeleton } from '@/components/ui/Skeleton'
+import { useAdmin } from '@/context/AdminContext'
 import type { Branch } from '@/types/database'
 
 export function AdminSucursales() {
   const qc = useQueryClient()
+  const { isSuperAdmin } = useAdmin()
   const [modal, setModal] = useState<{ open: boolean; branch?: Branch }>({ open: false })
 
   const { data: branches, isLoading } = useQuery<Branch[]>({
@@ -20,6 +22,13 @@ export function AdminSucursales() {
       return data
     },
   })
+
+  async function handleDelete(id: string) {
+    if (!confirm('¿Eliminar esta sucursal? Esta acción no se puede deshacer.')) return
+    await supabase.from('branches').delete().eq('id', id)
+    qc.invalidateQueries({ queryKey: ['admin-branches'] })
+    qc.invalidateQueries({ queryKey: ['branches'] })
+  }
 
   return (
     <div className="p-8">
@@ -68,12 +77,22 @@ export function AdminSucursales() {
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <button
-                      onClick={() => setModal({ open: true, branch: b })}
-                      className="rounded p-1 text-[var(--color-muted)] hover:text-[var(--color-dark)] transition-colors"
-                    >
-                      <Pencil size={14} />
-                    </button>
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        onClick={() => setModal({ open: true, branch: b })}
+                        className="rounded p-1 text-[var(--color-muted)] hover:text-[var(--color-dark)] transition-colors"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      {isSuperAdmin && (
+                        <button
+                          onClick={() => handleDelete(b.id)}
+                          className="rounded p-1 text-[var(--color-muted)] hover:text-red-600 transition-colors"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

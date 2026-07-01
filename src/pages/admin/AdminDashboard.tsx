@@ -37,7 +37,7 @@ function useDashboard(branchId: string | null) {
             ? supabase.from('registrations').select('*', { count: 'exact', head: true }).in('event_id', eventIds)
             : Promise.resolve({ count: 0 }),
           courseIds.length > 0
-            ? supabase.from('enrollments').select('*', { count: 'exact', head: true }).in('course_id', courseIds)
+            ? supabase.from('enrollments').select('*', { count: 'exact', head: true }).in('course_id', courseIds).eq('status', 'enrolled')
             : Promise.resolve({ count: 0 }),
         ])
         return {
@@ -58,7 +58,7 @@ function useDashboard(branchId: string | null) {
           supabase.from('subscriptions').select('*', { count: 'exact', head: true }).eq('status', 'active'),
           supabase.from('inquiries').select('*', { count: 'exact', head: true }).eq('status', 'new'),
           supabase.from('registrations').select('*', { count: 'exact', head: true }),
-          supabase.from('enrollments').select('*', { count: 'exact', head: true }),
+          supabase.from('enrollments').select('*', { count: 'exact', head: true }).eq('status', 'enrolled'),
         ])
       return {
         events: events.count ?? 0,

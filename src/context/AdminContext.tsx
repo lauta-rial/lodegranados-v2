@@ -10,9 +10,11 @@ const AdminContext = createContext<AdminContextType | null>(null)
 
 export function AdminProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth()
-  const role = user?.user_metadata?.role ?? 'admin'
+  const role = user?.app_metadata?.role ?? user?.user_metadata?.role ?? null
   const isSuperAdmin = role === 'superadmin'
-  const branchId: string | null = isSuperAdmin ? null : (user?.user_metadata?.branch_id ?? null)
+  const branchId: string | null = isSuperAdmin
+    ? null
+    : (user?.app_metadata?.branch_id ?? user?.user_metadata?.branch_id ?? null)
 
   return (
     <AdminContext.Provider value={{ isSuperAdmin, branchId }}>

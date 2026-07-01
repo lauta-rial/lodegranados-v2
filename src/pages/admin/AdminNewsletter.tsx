@@ -1,11 +1,17 @@
-import { useQuery } from '@tanstack/react-query'
-import { Mail } from 'lucide-react'
+import { useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { Mail, Plus, Trash2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Skeleton } from '@/components/ui/Skeleton'
+import { Modal } from '@/components/admin/Modal'
+import { FormField, FormActions, fieldClass } from '@/components/admin/AdminFormField'
 
 type Subscriber = { id: string; email: string; created_at: string | null }
 
 export function AdminNewsletter() {
+  const qc = useQueryClient()
+  const [addOpen, setAddOpen] = useState(false)
+
   const { data, isLoading } = useQuery<Subscriber[]>({
     queryKey: ['admin-newsletter'],
     queryFn: async () => {
@@ -17,6 +23,12 @@ export function AdminNewsletter() {
       return data ?? []
     },
   })
+
+  async function handleDelete(id: string, email: string) {
+    if (!confirm(`¿Eliminar a ${email} de la lista?`)) return
+    await supabase.from('newsletter').delete().eq('id', id)
+    qc.invalidateQueries({ queryKey: ['admin-newsletter'] })
+  }
 
   function exportCSV() {
     if (!data?.length) return
@@ -41,14 +53,22 @@ export function AdminNewsletter() {
             {data ? `${data.length} suscriptor${data.length !== 1 ? 'es' : ''}` : '—'}
           </p>
         </div>
-        {data && data.length > 0 && (
+        <div className="flex items-center gap-2">
+          {data && data.length > 0 && (
+            <button
+              onClick={exportCSV}
+              className="inline-flex h-9 items-center gap-2 rounded-lg border border-[var(--color-parchment)] bg-white px-4 text-sm font-medium text-[var(--color-dark-muted)] hover:bg-[var(--color-cream-dark)] transition-colors"
+            >
+              <Mail size={14} /> Exportar CSV
+            </button>
+          )}
           <button
-            onClick={exportCSV}
-            className="inline-flex h-9 items-center gap-2 rounded-lg border border-[var(--color-parchment)] bg-white px-4 text-sm font-medium text-[var(--color-dark-muted)] hover:bg-[var(--color-cream-dark)] transition-colors"
+            onClick={() => setAddOpen(true)}
+            className="inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--color-wine)] px-4 text-sm font-medium text-white hover:bg-[var(--color-wine-dark)] transition-colors"
           >
-            <Mail size={14} /> Exportar CSV
+            <Plus size={14} /> Agregar
           </button>
-        )}
+        </div>
       </div>
 
       <div className="rounded-xl border border-[var(--color-parchment)] bg-white overflow-hidden">
@@ -67,6 +87,7 @@ export function AdminNewsletter() {
               <tr>
                 <th className="px-4 py-3 text-left font-medium text-[var(--color-muted)]">Email</th>
                 <th className="px-4 py-3 text-left font-medium text-[var(--color-muted)]">Fecha de suscripción</th>
+                <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--color-parchment)]">
@@ -78,12 +99,70 @@ export function AdminNewsletter() {
                       ? new Date(s.created_at).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })
                       : '—'}
                   </td>
+                  <td className="px-4 py-3 text-right">
+                    <button
+                      onClick={() => handleDelete(s.id, s.email)}
+                      className="rounded p-1 text-[var(--color-muted)] hover:text-red-600 transition-colors"
+                      title="Eliminar suscriptor"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
       </div>
+
+      <AddSubscriberModal
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        onSaved={() => {
+          setAddOpen(false)
+          qc.invalidateQueries({ queryKey: ['admin-newsletter'] })
+        }}
+      />
     </div>
+  )
+}
+
+function AddSubscriberModal({ open, onClose, onSaved }: { open: boolean; onClose: () => void; onSaved: () => void }) {
+  const [email, setEmail] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+    const { error: dbErr } = await supabase.from('newsletter').insert({ email })
+    setLoading(false)
+    if (dbErr) {
+      setError(dbErr.code === '23505' ? 'Este email ya está suscripto.' : 'Error al guardar.')
+    } else {
+      setEmail('')
+      onSaved()
+    }
+  }
+
+  return (
+    <Modal key={open ? 'open' : 'closed'} open={open} onClose={onClose} title="Agregar suscriptor">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <FormField label="Email">
+          <input
+            type="email"
+            required
+            autoFocus
+            className={fieldClass}
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            placeholder="nombre@email.com"
+          />
+        </FormField>
+        {error && <p className="text-sm text-red-600">{error}</p>}
+        <FormActions onCancel={onClose} loading={loading} label="Agregar" />
+      </form>
+    </Modal>
   )
 }

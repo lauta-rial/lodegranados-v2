@@ -78,7 +78,7 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json()
-    const { type, purchaseType, ref, paymentId, userId, payerName, payerEmail, to, name, data: meta } = body
+    const { type, ref, paymentId, userId, payerName, payerEmail, to, name, data: meta } = body
 
     const siteUrl = meta?.siteUrl ?? 'https://lodegranados-v2-chi.vercel.app'
     const spots = Math.max(1, parseInt(meta?.spots ?? '1') || 1)
@@ -96,7 +96,10 @@ Deno.serve(async (req) => {
     }
 
     if (type === 'reservation') {
-      // Idempotency: skip if already processed for this payment
+      let registrationId: string | null = null
+      let skipDecrement = false
+
+      // Idempotency check — but allow retry if tickets were never created
       if (paymentId) {
         const { data: existing } = await supabase
           .from('registrations')
@@ -105,48 +108,62 @@ Deno.serve(async (req) => {
           .eq('payment_id', paymentId)
           .maybeSingle()
         if (existing) {
-          return new Response(JSON.stringify({ ok: true, skipped: true }), {
+          const { count } = await supabase
+            .from('tickets')
+            .select('id', { count: 'exact', head: true })
+            .eq('registration_id', existing.id)
+          if ((count ?? 0) > 0) {
+            return new Response(JSON.stringify({ ok: true, skipped: true }), {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            })
+          }
+          // Registration exists but no tickets — reuse it, skip re-inserting
+          registrationId = existing.id
+          skipDecrement = true
+        }
+      }
+
+      if (!registrationId) {
+        const { data: reg, error: dbErr } = await supabase.from('registrations').insert({
+          event_id: ref,
+          user_id: userId ?? null,
+          name: payerName ?? name ?? null,
+          email: payerEmail ?? to ?? null,
+          payment_id: paymentId ?? null,
+          spots,
+        }).select('id').single()
+
+        if (dbErr || !reg?.id) {
+          console.error('DB insert error (registrations):', dbErr?.message)
+          return new Response(JSON.stringify({ error: 'Error al registrar la reserva' }), {
+            status: 500,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           })
         }
+        registrationId = reg.id
       }
 
-      // Insert registration
-      const { data: reg, error: dbErr } = await supabase.from('registrations').insert({
+      if (!skipDecrement) {
+        const { error: decrementErr } = await supabase.rpc('decrement_event_spots', { p_event_id: ref, p_amount: spots })
+        if (decrementErr) console.error('decrement_event_spots error:', decrementErr.message)
+      }
+
+      const ticketRows = Array.from({ length: spots }, () => ({
+        registration_id: registrationId!,
         event_id: ref,
-        user_id: userId ?? null,
-        name: payerName ?? name ?? null,
-        email: payerEmail ?? to ?? null,
-        payment_id: paymentId ?? null,
-        spots,
-      }).select('id').single()
-
-      if (dbErr) {
-        console.error('DB insert error (registrations):', dbErr.message)
+      }))
+      const { data: tickets, error: ticketErr } = await supabase
+        .from('tickets')
+        .insert(ticketRows)
+        .select('token')
+      if (ticketErr) {
+        console.error('DB insert error (tickets):', ticketErr.message)
+        return new Response(JSON.stringify({ error: 'Error al crear las entradas' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
       }
-
-      // Decrement available spots atomically
-      if (reg?.id) {
-        await supabase.rpc('decrement_event_spots', { p_event_id: ref, p_amount: spots })
-      }
-
-      // Create one ticket per spot
-      let tokensList: string[] = []
-      if (reg?.id) {
-        const ticketRows = Array.from({ length: spots }, () => ({
-          registration_id: reg.id,
-          event_id: ref,
-        }))
-        const { data: tickets, error: ticketErr } = await supabase
-          .from('tickets')
-          .insert(ticketRows)
-          .select('token')
-        if (ticketErr) {
-          console.error('DB insert error (tickets):', ticketErr.message)
-        } else {
-          tokensList = (tickets ?? []).map((t: { token: string }) => t.token)
-        }
-      }
+      const tokensList = tickets.map((t: { token: string }) => t.token)
 
       const spotsLabel = spots > 1 ? ` (${spots} entradas)` : ''
       const html = emailBase(
@@ -161,7 +178,6 @@ Deno.serve(async (req) => {
     }
 
     if (type === 'enrollment') {
-      // Idempotency
       if (paymentId) {
         const { data: existing } = await supabase
           .from('enrollments')
@@ -186,9 +202,14 @@ Deno.serve(async (req) => {
       })
       if (dbErr) {
         console.error('DB insert error (enrollments):', dbErr.message)
-      } else {
-        await supabase.rpc('decrement_course_spots', { p_course_id: ref })
+        return new Response(JSON.stringify({ error: 'Error al registrar la inscripción' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
       }
+
+      const { error: decrementErr } = await supabase.rpc('decrement_course_spots', { p_course_id: ref })
+      if (decrementErr) console.error('decrement_course_spots error:', decrementErr.message)
 
       const html = emailBase(
         'Inscripción confirmada',
@@ -201,6 +222,20 @@ Deno.serve(async (req) => {
     }
 
     if (type === 'subscription') {
+      // Idempotency by payment_id
+      if (paymentId) {
+        const { data: existing } = await supabase
+          .from('subscriptions')
+          .select('id')
+          .eq('payment_id', paymentId)
+          .maybeSingle()
+        if (existing) {
+          return new Response(JSON.stringify({ ok: true, skipped: true }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          })
+        }
+      }
+
       const { data: plan } = await supabase.from('plans').select('branch_id, price').eq('id', ref).single()
 
       const { error: dbErr } = await supabase.from('subscriptions').insert({
@@ -210,8 +245,15 @@ Deno.serve(async (req) => {
         monthly_price: meta?.priceAmount ?? plan?.price ?? null,
         start_date: new Date().toISOString().slice(0, 10),
         status: 'active',
+        payment_id: paymentId ?? null,
       })
-      if (dbErr) console.error('DB insert error (subscriptions):', dbErr.message)
+      if (dbErr) {
+        console.error('DB insert error (subscriptions):', dbErr.message)
+        return new Response(JSON.stringify({ error: 'Error al registrar la suscripción' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
 
       const html = emailBase(
         '¡Bienvenido/a al Club!',

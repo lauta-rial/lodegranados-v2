@@ -172,7 +172,7 @@ function ProfileForm({ user }: { user: NonNullable<ReturnType<typeof useAuth>['u
 }
 
 function SubscriptionSection({ userId }: { userId: string }) {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['my-subscription', userId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -188,6 +188,7 @@ function SubscriptionSection({ userId }: { userId: string }) {
   const { data: branches } = useBranches()
   const slugForId = (id: string | null | undefined) =>
     branches?.find((b) => b.id === id)?.slug ?? ''
+  const firstBranch = branches?.[0]
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const plan = (data as any)?.plans
@@ -201,6 +202,8 @@ function SubscriptionSection({ userId }: { userId: string }) {
 
       {isLoading ? (
         <Skeleton className="h-24 w-full rounded-2xl" />
+      ) : isError ? (
+        <ErrorState label="No pudimos cargar tu suscripción." />
       ) : data ? (
         <Link to={`/${slugForId(data.branch_id)}/club/${data.plan_id}`} className="flex items-center justify-between rounded-2xl border border-[var(--color-wine)]/20 bg-[var(--color-wine)]/5 p-5 hover:border-[var(--color-wine)]/40 hover:shadow-sm transition-all">
           <div className="flex items-center gap-3">
@@ -217,15 +220,11 @@ function SubscriptionSection({ userId }: { userId: string }) {
           </span>
         </Link>
       ) : (
-        <div className="rounded-2xl border border-[var(--color-parchment)] bg-[var(--color-cream-dark)] p-6 text-center">
-          <p className="text-sm text-[var(--color-dark-muted)]">No tenés ninguna suscripción activa.</p>
-          <Link
-            to="/"
-            className="mt-3 inline-flex h-9 items-center rounded-full bg-[var(--color-wine)] px-5 text-sm font-medium text-white hover:bg-[var(--color-wine-dark)] transition-colors"
-          >
-            Ver planes del Club
-          </Link>
-        </div>
+        <EmptyState
+          label="No tenés ninguna suscripción activa."
+          link={firstBranch ? `/${firstBranch.slug}/club` : '/'}
+          linkLabel="Ver planes del Club"
+        />
       )}
     </section>
   )
@@ -235,9 +234,10 @@ function ReservationsSection({ userId }: { userId: string }) {
   const { data: branches } = useBranches()
   const slugForId = (id: string | null | undefined) =>
     branches?.find((b) => b.id === id)?.slug ?? ''
+  const firstBranch = branches?.[0]
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['my-registrations', userId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -268,8 +268,10 @@ function ReservationsSection({ userId }: { userId: string }) {
 
       {isLoading ? (
         <div className="space-y-3">{[...Array(2)].map((_, i) => <Skeleton key={i} className="h-20 w-full rounded-2xl" />)}</div>
+      ) : isError ? (
+        <ErrorState label="No pudimos cargar tus reservas." />
       ) : !data?.length ? (
-        <EmptyState label="No tenés reservas todavía." link="/" linkLabel="Ver próximas catas" />
+        <EmptyState label="No tenés reservas todavía." link={firstBranch ? `/${firstBranch.slug}/catas` : '/'} linkLabel="Ver próximas catas" />
       ) : (
         <div className="space-y-3">
           {data.map((r) => (
@@ -340,8 +342,9 @@ function EnrollmentsSection({ userId }: { userId: string }) {
   const { data: branches } = useBranches()
   const slugForId = (id: string | null | undefined) =>
     branches?.find((b) => b.id === id)?.slug ?? ''
+  const firstBranch = branches?.[0]
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['my-enrollments', userId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -370,8 +373,10 @@ function EnrollmentsSection({ userId }: { userId: string }) {
 
       {isLoading ? (
         <div className="space-y-3">{[...Array(2)].map((_, i) => <Skeleton key={i} className="h-20 w-full rounded-2xl" />)}</div>
+      ) : isError ? (
+        <ErrorState label="No pudimos cargar tus cursos." />
       ) : !data?.length ? (
-        <EmptyState label="No estás inscripto en ningún curso." link="/" linkLabel="Ver cursos disponibles" />
+        <EmptyState label="No estás inscripto en ningún curso." link={firstBranch ? `/${firstBranch.slug}/cursos` : '/'} linkLabel="Ver cursos disponibles" />
       ) : (
         <div className="space-y-3">
           {data.map((e) => (
@@ -422,6 +427,14 @@ function EmptyState({ label, link, linkLabel }: { label: string; link: string; l
       >
         {linkLabel}
       </Link>
+    </div>
+  )
+}
+
+function ErrorState({ label }: { label: string }) {
+  return (
+    <div className="rounded-2xl border border-red-100 bg-red-50 p-6 text-center">
+      <p className="text-sm text-red-700">{label}</p>
     </div>
   )
 }

@@ -145,6 +145,7 @@ function CourseModal({ open, course, branchId, onClose, onSaved }: { open: boole
     syllabus: Array.isArray(course?.syllabus) ? (course.syllabus as string[]).join('\n') : '',
     image_url: course?.image_url ?? '',
     branch_id: course?.branch_id ?? '',
+    active: course?.active ?? true,
   })
 
   const { data: branches } = useQuery<{ id: string; name: string }[]>({
@@ -173,7 +174,7 @@ function CourseModal({ open, course, branchId, onClose, onSaved }: { open: boole
       available_spots: parseInt(form.available_spots),
       syllabus: form.syllabus ? form.syllabus.split('\n').filter(Boolean) : null,
       image_url: form.image_url || null,
-      active: true,
+      active: form.active,
       branch_id: resolvedBranchId,
     }
     const { error } = course?.id
@@ -211,6 +212,10 @@ function CourseModal({ open, course, branchId, onClose, onSaved }: { open: boole
         <FormField label="Imagen">
           <ImageUpload folder="courses/" value={form.image_url} onChange={url => setForm(f => ({ ...f, image_url: url }))} dimensions="800 × 600 px · ratio 4:3" />
         </FormField>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={form.active} onChange={e => setForm(f => ({ ...f, active: e.target.checked }))} className="h-4 w-4 rounded border-[var(--color-parchment)] accent-[var(--color-wine)]" />
+          <span className="text-[var(--color-dark)]">Curso activo (visible en el sitio)</span>
+        </label>
         <FormActions onCancel={onClose} loading={loading} label={course ? 'Guardar cambios' : 'Crear curso'} />
       </form>
     </Modal>
@@ -219,11 +224,20 @@ function CourseModal({ open, course, branchId, onClose, onSaved }: { open: boole
 
 function EnrollmentsTab() {
   const qc = useQueryClient()
-  const { isSuperAdmin } = useAdmin()
+  const { branchId, isSuperAdmin } = useAdmin()
   const { data, isLoading } = useQuery<(Enrollment & { course_title: string; course_branch_name: string })[]>({
-    queryKey: ['admin-enrollments'],
+    queryKey: ['admin-enrollments', branchId],
     queryFn: async () => {
-      const { data, error } = await supabase.from('enrollments').select('*, courses(title, branches(name))').order('created_at', { ascending: false })
+      let q = supabase.from('enrollments').select('*, courses(title, branches(name))').order('created_at', { ascending: false })
+
+      if (branchId) {
+        const { data: courseData } = await supabase.from('courses').select('id').eq('branch_id', branchId)
+        const courseIds = (courseData ?? []).map((c) => c.id)
+        if (courseIds.length === 0) return []
+        q = q.in('course_id', courseIds)
+      }
+
+      const { data, error } = await q
       if (error) throw error
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return (data ?? []).map((e: any) => ({

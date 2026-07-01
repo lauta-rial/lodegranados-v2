@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { Trash2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAdmin } from '@/context/AdminContext'
 import { StatusBadge } from './AdminDashboard'
@@ -28,6 +29,15 @@ export function AdminConsultas() {
 
   async function setStatus(id: string, status: string) {
     await supabase.from('inquiries').update({ status }).eq('id', id)
+    qc.invalidateQueries({ queryKey: ['admin-inquiries'] })
+    qc.invalidateQueries({ queryKey: ['admin-dashboard'] })
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm('¿Eliminar esta consulta permanentemente?')) return
+    let q = supabase.from('inquiries').delete().eq('id', id)
+    if (branchId) q = q.eq('branch_id', branchId)
+    await q
     qc.invalidateQueries({ queryKey: ['admin-inquiries'] })
     qc.invalidateQueries({ queryKey: ['admin-dashboard'] })
   }
@@ -89,6 +99,10 @@ export function AdminConsultas() {
                       Restaurar
                     </button>
                   )}
+                  <button onClick={() => handleDelete(inq.id)}
+                    className="h-8 rounded-lg border border-transparent px-3 text-xs font-medium text-red-400 hover:border-red-200 hover:bg-red-50 hover:text-red-600 transition-colors">
+                    <Trash2 size={13} className="inline mr-1" />Eliminar
+                  </button>
                 </div>
               </div>
             </div>

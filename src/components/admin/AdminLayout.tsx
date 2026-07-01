@@ -71,9 +71,23 @@ export function AdminLayout() {
 
   if (!user) return <AdminLoginForm />
 
-  const role = user.user_metadata?.role
+  const role = user.app_metadata?.role ?? user.user_metadata?.role
   const isAllowed = role === 'admin' || role === 'superadmin'
   if (!isAllowed) return <Navigate to="/" replace />
+
+  const branchId = user.app_metadata?.branch_id ?? user.user_metadata?.branch_id ?? null
+  if (role === 'admin' && !branchId) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[var(--color-cream)] p-4">
+        <div className="max-w-sm text-center">
+          <p className="font-display text-2xl text-[var(--color-dark)]">Cuenta sin sucursal</p>
+          <p className="mt-3 text-sm text-[var(--color-muted)]">
+            Tu cuenta no tiene una sucursal asignada. Contactá al superadmin para configurarla.
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <AdminProvider>
