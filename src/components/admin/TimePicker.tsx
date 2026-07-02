@@ -1,7 +1,15 @@
 import { fieldClass } from '@/components/admin/AdminFormField'
 
-const HOURS = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0'))
-const MINUTES = ['00', '30']
+// 07:00 through 23:30, plus 00:00 (midnight) as the closing slot.
+const TIMES = [
+  ...Array.from({ length: 34 }, (_, i) => {
+    const totalMinutes = 7 * 60 + i * 30
+    const hour = Math.floor(totalMinutes / 60)
+    const minute = totalMinutes % 60
+    return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`
+  }),
+  '00:00',
+]
 
 // Rounds a "HH:MM" (or "HH:MM:SS") string to the nearest 30-minute slot,
 // for legacy times set before the picker was restricted to 00/30.
@@ -24,32 +32,15 @@ export function TimePicker({
   onChange: (value: string) => void
   required?: boolean
 }) {
-  const [hour = '', minute = ''] = value ? value.split(':') : []
-
-  function update(nextHour: string, nextMinute: string) {
-    onChange(nextHour && nextMinute ? `${nextHour}:${nextMinute}` : '')
-  }
-
   return (
-    <div className="grid grid-cols-2 gap-2">
-      <select
-        required={required}
-        className={fieldClass}
-        value={hour}
-        onChange={e => update(e.target.value, minute || '00')}
-      >
-        <option value="" disabled>Hora</option>
-        {HOURS.map(h => <option key={h} value={h}>{h} hs</option>)}
-      </select>
-      <select
-        required={required}
-        className={fieldClass}
-        value={minute}
-        onChange={e => update(hour, e.target.value)}
-      >
-        <option value="" disabled>Min</option>
-        {MINUTES.map(m => <option key={m} value={m}>{m}</option>)}
-      </select>
-    </div>
+    <select
+      required={required}
+      className={fieldClass}
+      value={value}
+      onChange={e => onChange(e.target.value)}
+    >
+      <option value="" disabled>Hora</option>
+      {TIMES.map(t => <option key={t} value={t}>{t} hs</option>)}
+    </select>
   )
 }
