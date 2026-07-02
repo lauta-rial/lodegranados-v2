@@ -31,6 +31,20 @@ async function sendEmail(to: string, subject: string, html: string) {
   }
 }
 
+// Builds a branch-scoped link (all catas/cursos/club routes live under /:branchSlug/...).
+// Falls back to the site root (branch picker) when we don't know the branch.
+function branchUrl(siteUrl: string, branchSlug: string | undefined | null, path: string): string {
+  return branchSlug ? `${siteUrl}/${branchSlug}/${path}` : siteUrl
+}
+
+function formatEventDateTime(date: string | null, time: string | null): string {
+  if (!date) return ''
+  const d = new Date(`${date}T00:00:00`)
+  const dateLabel = new Intl.DateTimeFormat('es-AR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(d)
+  const timeLabel = time ? ` · ${time.slice(0, 5)} hs` : ''
+  return `${dateLabel}${timeLabel}`
+}
+
 function qrImgTag(token: string): string {
   const url = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${token}&bgcolor=ffffff&color=6b2737&margin=10`
   return `<img src="${url}" width="220" height="220" alt="QR entrada" style="display:block;border-radius:8px;" />`
@@ -53,13 +67,27 @@ function emailBase(title: string, body: string, ctaUrl: string, ctaLabel: string
 </div></body></html>`
 }
 
+// A light info card for event details (date/time/location) — sits between the
+// confirmation copy and the QR codes so the email reads like an actual ticket.
+function detailsCard(rows: Array<[string, string]>): string {
+  const visible = rows.filter(([, value]) => value)
+  if (visible.length === 0) return ''
+  const items = visible.map(([label, value]) =>
+    `<tr>
+      <td style="padding:4px 12px 4px 0;font-size:12px;color:#9c8f83;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;vertical-align:top">${label}</td>
+      <td style="padding:4px 0;font-size:14px;color:#3d2b1f;">${value}</td>
+    </tr>`
+  ).join('')
+  return `<table style="margin-top:20px;width:100%;background:#faf9f6;border-radius:10px;padding:16px 18px;border-collapse:collapse">${items}</table>`
+}
+
 function qrSection(tokens: string[]): string {
   if (tokens.length === 0) return ''
   const items = tokens.map((token, i) =>
-    `<div style="text-align:center;margin-bottom:24px">
-      <p style="margin:0 0 8px;font-size:13px;color:#6b2737;font-weight:600;letter-spacing:0.05em">ENTRADA ${i + 1}</p>
+    `<div style="text-align:center;margin-bottom:16px;padding:20px;border:1px solid #e8e1d9;border-radius:12px">
+      <p style="margin:0 0 12px;font-size:12px;color:#6b2737;font-weight:600;letter-spacing:0.08em;text-transform:uppercase">Entrada ${i + 1} de ${tokens.length}</p>
       ${qrImgTag(token)}
-      <p style="margin:8px 0 0;font-size:11px;color:#9c8f83;word-break:break-all">${token}</p>
+      <p style="margin:10px 0 0;font-size:10px;color:#c4b8ab;word-break:break-all">${token}</p>
     </div>`
   ).join('')
 
@@ -81,7 +109,9 @@ Deno.serve(async (req) => {
     const { type, ref, paymentId, userId, payerName, payerEmail, to, name, data: meta } = body
 
     const siteUrl = meta?.siteUrl ?? 'https://lodegranados-v2-chi.vercel.app'
+    const branchSlug = meta?.branchSlug ?? null
     const spots = Math.max(1, parseInt(meta?.spots ?? '1') || 1)
+    const greetingName = payerName || name
 
     if (type === 'welcome') {
       const html = emailBase(
@@ -165,13 +195,23 @@ Deno.serve(async (req) => {
       }
       const tokensList = tickets.map((t: { token: string }) => t.token)
 
+      const { data: eventRow } = await supabase
+        .from('events')
+        .select('date, time, location')
+        .eq('id', ref)
+        .maybeSingle()
+
       const spotsLabel = spots > 1 ? ` (${spots} entradas)` : ''
       const html = emailBase(
         'Reserva confirmada',
-        `<p style="color:#3d2b1f;line-height:1.7">Hola <strong>${payerName || name}</strong>,</p>
+        `<p style="color:#3d2b1f;line-height:1.7">Hola <strong>${greetingName}</strong>,</p>
          <p style="color:#3d2b1f;line-height:1.7">Tu reserva para <strong>${meta?.title ?? 'la cata'}</strong>${spotsLabel}${meta?.price ? ` por <strong>${meta.price}</strong>` : ''} fue confirmada. Te esperamos.</p>
+         ${detailsCard([
+           ['Cuándo', formatEventDateTime(eventRow?.date ?? null, eventRow?.time ?? null)],
+           ['Dónde', eventRow?.location ?? ''],
+         ])}
          ${qrSection(tokensList)}`,
-        `${siteUrl}/catas`,
+        branchUrl(siteUrl, branchSlug, 'catas'),
         'Ver catas',
       )
       await sendEmail(payerEmail ?? to, 'Tu reserva está confirmada — Lo de Granados', html)
@@ -213,9 +253,9 @@ Deno.serve(async (req) => {
 
       const html = emailBase(
         'Inscripción confirmada',
-        `<p style="color:#3d2b1f;line-height:1.7">Hola <strong>${payerName || name}</strong>,</p>
+        `<p style="color:#3d2b1f;line-height:1.7">Hola <strong>${greetingName}</strong>,</p>
          <p style="color:#3d2b1f;line-height:1.7">Tu inscripción al curso <strong>${meta?.title ?? ''}</strong>${meta?.price ? ` por <strong>${meta.price}</strong>` : ''} fue confirmada. Te contactaremos con más detalles.</p>`,
-        `${siteUrl}/cursos`,
+        branchUrl(siteUrl, branchSlug, 'cursos'),
         'Ver cursos',
       )
       await sendEmail(payerEmail ?? to, 'Tu inscripción está confirmada — Lo de Granados', html)
@@ -257,9 +297,9 @@ Deno.serve(async (req) => {
 
       const html = emailBase(
         '¡Bienvenido/a al Club!',
-        `<p style="color:#3d2b1f;line-height:1.7">Hola <strong>${payerName || name}</strong>,</p>
+        `<p style="color:#3d2b1f;line-height:1.7">Hola <strong>${greetingName}</strong>,</p>
          <p style="color:#3d2b1f;line-height:1.7">Tu suscripción al <strong>${meta?.title ?? 'Club DeVinos'}</strong>${meta?.price ? ` (${meta.price}/mes)` : ''} fue activada. Cada mes recibirás vinos seleccionados por nuestro sommelier.</p>`,
-        `${siteUrl}/club`,
+        branchUrl(siteUrl, branchSlug, 'club'),
         'Ver mi Club',
       )
       await sendEmail(payerEmail ?? to, 'Bienvenido/a al Club DeVinos — Lo de Granados', html)

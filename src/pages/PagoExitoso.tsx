@@ -65,12 +65,14 @@ export function PagoExitoso() {
           payerName,
           payerEmail,
           to: payerEmail,
-          name: payerName || payerEmail,
+          name: payerName || payerEmail.split('@')[0],
           data: {
             title,
             price: price ? formatPrice(price * spots) : undefined,
             priceAmount: price ?? null,
             spots,
+            branchSlug,
+            siteUrl: window.location.origin,
           },
         },
       })
