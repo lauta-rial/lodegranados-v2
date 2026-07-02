@@ -186,7 +186,6 @@ Deno.serve(async (req) => {
 
     if (type === 'reservation') {
       let registrationId: string | null = null
-      let skipDecrement = false
 
       // Idempotency check — but allow retry if tickets were never created
       if (paymentId) {
@@ -208,11 +207,13 @@ Deno.serve(async (req) => {
           }
           // Registration exists but no tickets — reuse it, skip re-inserting
           registrationId = existing.id
-          skipDecrement = true
         }
       }
 
       if (!registrationId) {
+        // available_spots is derived by a DB trigger from this table's rows
+        // (see migration self_healing_event_available_spots) — inserting
+        // here is what updates the count, no separate decrement call needed.
         const { data: reg, error: dbErr } = await supabase.from('registrations').insert({
           event_id: ref,
           user_id: userId ?? null,
@@ -230,11 +231,6 @@ Deno.serve(async (req) => {
           })
         }
         registrationId = reg.id
-      }
-
-      if (!skipDecrement) {
-        const { error: decrementErr } = await supabase.rpc('decrement_event_spots', { p_event_id: ref, p_amount: spots })
-        if (decrementErr) console.error('decrement_event_spots error:', decrementErr.message)
       }
 
       const ticketRows = Array.from({ length: spots }, () => ({
