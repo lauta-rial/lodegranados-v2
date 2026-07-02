@@ -17,6 +17,7 @@ import { Empresas } from '@/pages/Empresas'
 import { Faq } from '@/pages/Faq'
 import { Login } from '@/pages/Login'
 import { Register } from '@/pages/Register'
+import { Bienvenido } from '@/pages/Bienvenido'
 import { ForgotPassword } from '@/pages/ForgotPassword'
 import { ResetPassword } from '@/pages/ResetPassword'
 import { MiCuenta } from '@/pages/MiCuenta'
@@ -44,6 +45,7 @@ export default function App() {
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/bienvenido" element={<ProtectedRoute><Bienvenido /></ProtectedRoute>} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/mi-cuenta" element={<ProtectedRoute><MiCuenta /></ProtectedRoute>} />

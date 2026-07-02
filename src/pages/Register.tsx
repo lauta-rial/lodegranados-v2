@@ -29,7 +29,11 @@ export function Register() {
     setResendError('')
     setResendSent(false)
     try {
-      const { error } = await supabase.auth.resend({ type: 'signup', email })
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email,
+        options: { emailRedirectTo: `${window.location.origin}/bienvenido` },
+      })
       if (error) throw error
       setResendSent(true)
       setResendCooldown(RESEND_COOLDOWN_SECONDS)

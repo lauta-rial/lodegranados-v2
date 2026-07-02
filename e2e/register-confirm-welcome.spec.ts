@@ -23,7 +23,8 @@ test('register -> confirm email -> welcome email fires only after confirmation',
   const confirmationUrl = extractConfirmationUrl(confirmationEmail)
 
   await page.goto(confirmationUrl)
-  await expect(page).toHaveURL(/access_token=/)
+  await expect(page).toHaveURL(/\/bienvenido#.*access_token=/)
+  await expect(page.getByRole('heading', { name: /¡Bienvenido/ })).toBeVisible()
 
   const welcomeEmail = await waitForEmail(email, 'Bienvenido/a a Lo de Granados')
 
