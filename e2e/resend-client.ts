@@ -57,7 +57,7 @@ export async function waitForEmail(
 /** Extracts the Supabase auth confirmation URL from an email's text/HTML body. */
 export function extractConfirmationUrl(email: ResendEmail): string {
   const body = email.text ?? email.html ?? ''
-  const match = body.match(/https:\/\/[^\s"'<>]*\/auth\/v1\/verify\?[^\s"'<>]*/)
+  const match = body.match(/https:\/\/[^\s"'<>[\]()]*\/auth\/v1\/verify\?[^\s"'<>[\]()]*/)
   if (!match) throw new Error(`No confirmation URL found in email body:\n${body}`)
   return match[0].replace(/&amp;/g, '&')
 }
