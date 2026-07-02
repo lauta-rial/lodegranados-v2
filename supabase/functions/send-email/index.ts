@@ -1,5 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { createClient } from "jsr:@supabase/supabase-js@2"
+import { encodeBase64 } from "jsr:@std/encoding@1/base64"
+import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "https://esm.sh/pdf-lib@1.17.1"
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? ''
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -13,7 +15,9 @@ const corsHeaders = {
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
-async function sendEmail(to: string, subject: string, html: string) {
+type Attachment = { filename: string; content: string }
+
+async function sendEmail(to: string, subject: string, html: string, attachments?: Attachment[]) {
   if (!RESEND_API_KEY) {
     console.warn('RESEND_API_KEY not set — skipping email')
     return
@@ -24,7 +28,7 @@ async function sendEmail(to: string, subject: string, html: string) {
       Authorization: `Bearer ${RESEND_API_KEY}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ from: RESEND_FROM_EMAIL, to, subject, html }),
+    body: JSON.stringify({ from: RESEND_FROM_EMAIL, to, subject, html, ...(attachments?.length ? { attachments } : {}) }),
   })
   if (!res.ok) {
     console.error('Resend error:', await res.text())
@@ -39,15 +43,25 @@ function branchUrl(siteUrl: string, branchSlug: string | undefined | null, path:
 
 function formatEventDateTime(date: string | null, time: string | null): string {
   if (!date) return ''
-  const d = new Date(`${date}T00:00:00`)
-  const dateLabel = new Intl.DateTimeFormat('es-AR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(d)
+  // Matches formatDate() in src/lib/utils.ts: parse the date-only string as UTC
+  // midnight, then render in Argentina's timezone explicitly (not the server's
+  // ambient TZ) so the date shown here always matches what the site displays.
+  const dateLabel = new Intl.DateTimeFormat('es-AR', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+    timeZone: 'America/Argentina/Buenos_Aires',
+  }).format(new Date(date))
   const timeLabel = time ? ` · ${time.slice(0, 5)} hs` : ''
   return `${dateLabel}${timeLabel}`
 }
 
+function qrPngUrl(token: string, size = 220): string {
+  return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${token}&bgcolor=ffffff&color=6b2737&margin=10`
+}
+
 function qrImgTag(token: string): string {
-  const url = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${token}&bgcolor=ffffff&color=6b2737&margin=10`
-  return `<img src="${url}" width="220" height="220" alt="QR entrada" style="display:block;border-radius:8px;" />`
+  // margin:0 auto centers the image — text-align:center on the parent has no
+  // effect here because the <img> is display:block.
+  return `<img src="${qrPngUrl(token)}" width="220" height="220" alt="QR entrada" style="display:block;margin:0 auto;border-radius:8px;" />`
 }
 
 function emailBase(title: string, body: string, ctaUrl: string, ctaLabel: string): string {
@@ -96,7 +110,65 @@ function qrSection(tokens: string[]): string {
       ${tokens.length > 1 ? 'Tus entradas' : 'Tu entrada'} — mostrá este QR en el ingreso
     </p>
     ${items}
+    <p style="margin-top:16px;font-size:12px;color:#9c8f83;text-align:center">
+      ${tokens.length > 1 ? 'Cada entrada también va adjunta como PDF individual, para que puedas reenviarla por separado.' : 'Tu entrada también va adjunta como PDF.'}
+    </p>
   </div>`
+}
+
+const WINE = rgb(0x6b / 255, 0x27 / 255, 0x37 / 255)
+const DARK = rgb(0x3d / 255, 0x2b / 255, 0x1f / 255)
+const MUTED = rgb(0x9c / 255, 0x8f / 255, 0x83 / 255)
+const CREAM = rgb(0xf5 / 255, 0xe6 / 255, 0xc8 / 255)
+
+function drawCenteredText(page: PDFPage, text: string, font: PDFFont, size: number, y: number, color = DARK) {
+  const width = font.widthOfTextAtSize(text, size)
+  page.drawText(text, { x: (page.getWidth() - width) / 2, y, size, font, color })
+}
+
+// One ticket per PDF — each attachment is self-contained (event info + a single
+// centered QR) so a buyer can forward just one entrada without exposing the rest.
+async function buildTicketPdf(params: {
+  eventTitle: string
+  dateTimeLabel: string
+  location: string
+  index: number
+  total: number
+  token: string
+}): Promise<Uint8Array> {
+  const qrRes = await fetch(qrPngUrl(params.token, 440))
+  const qrBytes = new Uint8Array(await qrRes.arrayBuffer())
+
+  const doc = await PDFDocument.create()
+  const page = doc.addPage([420, 620])
+  const width = page.getWidth()
+  const bold = await doc.embedFont(StandardFonts.HelveticaBold)
+  const regular = await doc.embedFont(StandardFonts.Helvetica)
+
+  page.drawRectangle({ x: 0, y: page.getHeight() - 96, width, height: 96, color: WINE })
+  drawCenteredText(page, 'LO DE GRANADOS', bold, 11, page.getHeight() - 38, CREAM)
+  drawCenteredText(page, params.eventTitle, bold, 17, page.getHeight() - 64, rgb(1, 1, 1))
+
+  let y = page.getHeight() - 130
+  if (params.dateTimeLabel) {
+    drawCenteredText(page, params.dateTimeLabel, regular, 11, y, DARK)
+    y -= 18
+  }
+  if (params.location) {
+    drawCenteredText(page, params.location, regular, 11, y, DARK)
+    y -= 18
+  }
+
+  const qrImage = await doc.embedPng(qrBytes)
+  const qrSize = 260
+  const qrY = y - qrSize - 24
+  page.drawImage(qrImage, { x: (width - qrSize) / 2, y: qrY, width: qrSize, height: qrSize })
+
+  drawCenteredText(page, `ENTRADA ${params.index} DE ${params.total}`, bold, 12, qrY - 26, WINE)
+  drawCenteredText(page, 'Mostrá este QR en el ingreso', regular, 10, qrY - 44, MUTED)
+  drawCenteredText(page, params.token, regular, 8, 40, MUTED)
+
+  return doc.save()
 }
 
 Deno.serve(async (req) => {
@@ -201,20 +273,45 @@ Deno.serve(async (req) => {
         .eq('id', ref)
         .maybeSingle()
 
+      const dateTimeLabel = formatEventDateTime(eventRow?.date ?? null, eventRow?.time ?? null)
+      const eventTitle = meta?.title ?? 'Lo de Granados'
+
+      let attachments: Attachment[] = []
+      try {
+        const pdfs = await Promise.all(
+          tokensList.map((token: string, i: number) =>
+            buildTicketPdf({
+              eventTitle,
+              dateTimeLabel,
+              location: eventRow?.location ?? '',
+              index: i + 1,
+              total: tokensList.length,
+              token,
+            })
+          )
+        )
+        attachments = pdfs.map((bytes, i) => ({
+          filename: tokensList.length > 1 ? `entrada-${i + 1}-de-${tokensList.length}.pdf` : 'entrada.pdf',
+          content: encodeBase64(bytes),
+        }))
+      } catch (pdfErr) {
+        console.error('PDF ticket generation error:', pdfErr instanceof Error ? pdfErr.message : pdfErr)
+      }
+
       const spotsLabel = spots > 1 ? ` (${spots} entradas)` : ''
       const html = emailBase(
         'Reserva confirmada',
         `<p style="color:#3d2b1f;line-height:1.7">Hola <strong>${greetingName}</strong>,</p>
-         <p style="color:#3d2b1f;line-height:1.7">Tu reserva para <strong>${meta?.title ?? 'la cata'}</strong>${spotsLabel}${meta?.price ? ` por <strong>${meta.price}</strong>` : ''} fue confirmada. Te esperamos.</p>
+         <p style="color:#3d2b1f;line-height:1.7">Tu reserva para <strong>${eventTitle}</strong>${spotsLabel}${meta?.price ? ` por <strong>${meta.price}</strong>` : ''} fue confirmada. Te esperamos.</p>
          ${detailsCard([
-           ['Cuándo', formatEventDateTime(eventRow?.date ?? null, eventRow?.time ?? null)],
+           ['Cuándo', dateTimeLabel],
            ['Dónde', eventRow?.location ?? ''],
          ])}
          ${qrSection(tokensList)}`,
         branchUrl(siteUrl, branchSlug, 'catas'),
         'Ver catas',
       )
-      await sendEmail(payerEmail ?? to, 'Tu reserva está confirmada — Lo de Granados', html)
+      await sendEmail(payerEmail ?? to, 'Tu reserva está confirmada — Lo de Granados', html, attachments)
     }
 
     if (type === 'enrollment') {
