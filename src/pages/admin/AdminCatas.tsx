@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { Modal } from '@/components/admin/Modal'
 import { FormField, FormActions, fieldClass } from '@/components/admin/AdminFormField'
 import { ImageUpload } from '@/components/admin/ImageUpload'
+import { TimePicker, roundToHalfHour } from '@/components/admin/TimePicker'
 import { useAdmin } from '@/context/AdminContext'
 import { StatusBadge } from './AdminDashboard'
 import { Skeleton } from '@/components/ui/Skeleton'
@@ -136,6 +137,7 @@ function EventsTab() {
       </div>
 
       <EventModal
+        key={modal.event?.id ?? 'new'}
         open={modal.open}
         event={modal.event}
         branchId={branchId}
@@ -164,7 +166,7 @@ function EventModal({ open, event, branchId, onClose, onSaved }: {
     title: event?.title ?? '',
     description: event?.description ?? '',
     date: event?.date ?? '',
-    time: event?.time?.slice(0, 5) ?? '',
+    time: roundToHalfHour(event?.time),
     location: event?.location ?? '',
     total_spots: event?.total_spots?.toString() ?? '',
     available_spots: event?.available_spots?.toString() ?? '',
@@ -183,9 +185,6 @@ function EventModal({ open, event, branchId, onClose, onSaved }: {
     enabled: isSuperAdmin,
     staleTime: Infinity,
   })
-
-  // Reset form when event changes
-  const key = event?.id ?? 'new'
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -212,7 +211,7 @@ function EventModal({ open, event, branchId, onClose, onSaved }: {
   }
 
   return (
-    <Modal key={key} open={open} onClose={onClose} title={event ? 'Editar evento' : 'Nuevo evento'} size="lg">
+    <Modal open={open} onClose={onClose} title={event ? 'Editar evento' : 'Nuevo evento'} size="lg">
       <form onSubmit={handleSubmit} className="space-y-4">
         <FormField label="Título">
           <input required className={fieldClass} value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
@@ -233,7 +232,7 @@ function EventModal({ open, event, branchId, onClose, onSaved }: {
             <input required type="date" className={fieldClass} value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
           </FormField>
           <FormField label="Hora">
-            <input required type="time" className={fieldClass} value={form.time} onChange={e => setForm(f => ({ ...f, time: e.target.value }))} />
+            <TimePicker required value={form.time} onChange={time => setForm(f => ({ ...f, time }))} />
           </FormField>
         </div>
         <FormField label="Ubicación">

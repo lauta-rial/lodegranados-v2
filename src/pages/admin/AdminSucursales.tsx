@@ -102,6 +102,7 @@ export function AdminSucursales() {
       </div>
 
       <BranchModal
+        key={modal.branch?.id ?? 'new'}
         open={modal.open}
         branch={modal.branch}
         onClose={() => setModal({ open: false })}
@@ -133,8 +134,6 @@ function BranchModal({ open, branch, onClose, onSaved }: {
     active: branch?.active ?? true,
   })
 
-  const key = branch?.id ?? 'new'
-
   function set(field: keyof typeof form) {
     return (e: React.ChangeEvent<HTMLInputElement>) =>
       setForm(f => ({ ...f, [field]: e.target.value }))
@@ -161,7 +160,7 @@ function BranchModal({ open, branch, onClose, onSaved }: {
   }
 
   return (
-    <Modal key={key} open={open} onClose={onClose} title={branch ? 'Editar sucursal' : 'Nueva sucursal'}>
+    <Modal open={open} onClose={onClose} title={branch ? 'Editar sucursal' : 'Nueva sucursal'}>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <FormField label="Nombre">

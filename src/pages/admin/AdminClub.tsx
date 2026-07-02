@@ -112,6 +112,7 @@ function PlansTab() {
       </div>
 
       <PlanModal
+        key={modal.plan?.id ?? 'new'}
         open={modal.open}
         plan={modal.plan}
         branchId={branchId}
@@ -174,7 +175,7 @@ function PlanModal({ open, plan, branchId, onClose, onSaved }: { open: boolean; 
   }
 
   return (
-    <Modal key={plan?.id ?? 'new'} open={open} onClose={onClose} title={plan ? 'Editar plan' : 'Nuevo plan'}>
+    <Modal open={open} onClose={onClose} title={plan ? 'Editar plan' : 'Nuevo plan'}>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <FormField label="Nombre"><input required className={fieldClass} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></FormField>

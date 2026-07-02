@@ -114,6 +114,7 @@ function CoursesTab() {
       </div>
 
       <CourseModal
+        key={modal.course?.id ?? 'new'}
         open={modal.open}
         course={modal.course}
         branchId={branchId}
@@ -185,7 +186,7 @@ function CourseModal({ open, course, branchId, onClose, onSaved }: { open: boole
   }
 
   return (
-    <Modal key={course?.id ?? 'new'} open={open} onClose={onClose} title={course ? 'Editar curso' : 'Nuevo curso'} size="lg">
+    <Modal open={open} onClose={onClose} title={course ? 'Editar curso' : 'Nuevo curso'} size="lg">
       <form onSubmit={handleSubmit} className="space-y-4">
         <FormField label="Título"><input required className={fieldClass} value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} /></FormField>
         {isSuperAdmin && (
