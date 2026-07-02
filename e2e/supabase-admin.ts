@@ -33,3 +33,21 @@ export async function setAvailableSpots(eventId: string, spots: number): Promise
   })
   if (!res.ok) throw new Error(`Failed to reset available_spots: ${res.status} ${await res.text()}`)
 }
+
+// `registrations` rows are only readable by the owner or an admin (RLS), so
+// this needs the service role key too. Returns null (skip, don't fail) when
+// the key isn't provided.
+export async function getRegistrationsCount(eventId: string): Promise<number | null> {
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!serviceRoleKey) return null
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/registrations?event_id=eq.${eventId}&select=id`, {
+    headers: {
+      apikey: serviceRoleKey,
+      Authorization: `Bearer ${serviceRoleKey}`,
+      Prefer: 'count=exact',
+    },
+  })
+  if (!res.ok) throw new Error(`Failed to read registrations count: ${res.status} ${await res.text()}`)
+  const range = res.headers.get('content-range') // "0-4/5"
+  return range ? parseInt(range.split('/')[1], 10) : (await res.json()).length
+}
