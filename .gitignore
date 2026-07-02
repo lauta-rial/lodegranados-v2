@@ -30,3 +30,7 @@ npm-debug.log*
 .env*
 .playwright-mcp/
 TEST_CARD.txt
+
+# Playwright e2e
+/playwright-report/
+/test-results/
