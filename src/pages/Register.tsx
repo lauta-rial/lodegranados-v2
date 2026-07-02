@@ -54,14 +54,6 @@ export function Register() {
     setLoading(true)
     try {
       await signUp(email, password)
-      supabase.functions.invoke('send-email', {
-        body: {
-          type: 'welcome',
-          to: email,
-          name: email.split('@')[0],
-          data: { siteUrl: window.location.origin },
-        },
-      })
       setDone(true)
       setResendCooldown(RESEND_COOLDOWN_SECONDS)
     } catch (err) {
