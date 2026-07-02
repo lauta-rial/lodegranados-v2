@@ -58,12 +58,6 @@ function qrPngUrl(token: string, size = 220): string {
   return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${token}&bgcolor=ffffff&color=6b2737&margin=10`
 }
 
-function qrImgTag(token: string): string {
-  // margin:0 auto centers the image — text-align:center on the parent has no
-  // effect here because the <img> is display:block.
-  return `<img src="${qrPngUrl(token)}" width="220" height="220" alt="QR entrada" style="display:block;margin:0 auto;border-radius:8px;" />`
-}
-
 function emailBase(title: string, body: string, ctaUrl: string, ctaLabel: string): string {
   return `<!DOCTYPE html><html><body style="font-family:Georgia,serif;background:#faf9f6;margin:0;padding:40px 0">
 <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e8e1d9">
@@ -82,7 +76,7 @@ function emailBase(title: string, body: string, ctaUrl: string, ctaLabel: string
 }
 
 // A light info card for event details (date/time/location) — sits between the
-// confirmation copy and the QR codes so the email reads like an actual ticket.
+// confirmation copy and the attachments notice so the email reads like an actual ticket.
 function detailsCard(rows: Array<[string, string]>): string {
   const visible = rows.filter(([, value]) => value)
   if (visible.length === 0) return ''
@@ -95,24 +89,17 @@ function detailsCard(rows: Array<[string, string]>): string {
   return `<table style="margin-top:20px;width:100%;background:#faf9f6;border-radius:10px;padding:16px 18px;border-collapse:collapse">${items}</table>`
 }
 
-function qrSection(tokens: string[]): string {
-  if (tokens.length === 0) return ''
-  const items = tokens.map((token, i) =>
-    `<div style="text-align:center;margin-bottom:16px;padding:20px;border:1px solid #e8e1d9;border-radius:12px">
-      <p style="margin:0 0 12px;font-size:12px;color:#6b2737;font-weight:600;letter-spacing:0.08em;text-transform:uppercase">Entrada ${i + 1} de ${tokens.length}</p>
-      ${qrImgTag(token)}
-      <p style="margin:10px 0 0;font-size:10px;color:#c4b8ab;word-break:break-all">${token}</p>
-    </div>`
-  ).join('')
-
-  return `<div style="margin-top:28px;border-top:1px solid #e8e1d9;padding-top:28px">
-    <p style="color:#3d2b1f;font-size:14px;font-weight:600;margin:0 0 20px;text-align:center">
-      ${tokens.length > 1 ? 'Tus entradas' : 'Tu entrada'} — mostrá este QR en el ingreso
+// The QR codes themselves only live in the attached PDFs now — the body just
+// points to them, so the email doesn't duplicate the same ticket twice.
+function attachmentsNotice(count: number): string {
+  const label = count > 1
+    ? `Te adjuntamos tus ${count} entradas en PDF, cada una por separado — reenviá solo la que corresponda si compartís la reserva.`
+    : 'Te adjuntamos tu entrada en PDF — mostrá el código QR en el ingreso.'
+  return `<div style="margin-top:28px;border-top:1px solid #e8e1d9;padding-top:24px;text-align:center">
+    <p style="color:#6b2737;font-size:13px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin:0 0 8px">
+      ${count > 1 ? `${count} entradas adjuntas (PDF)` : 'Entrada adjunta (PDF)'}
     </p>
-    ${items}
-    <p style="margin-top:16px;font-size:12px;color:#9c8f83;text-align:center">
-      ${tokens.length > 1 ? 'Cada entrada también va adjunta como PDF individual, para que puedas reenviarla por separado.' : 'Tu entrada también va adjunta como PDF.'}
-    </p>
+    <p style="color:#3d2b1f;font-size:13px;line-height:1.6;margin:0">${label}</p>
   </div>`
 }
 
@@ -307,7 +294,7 @@ Deno.serve(async (req) => {
            ['Cuándo', dateTimeLabel],
            ['Dónde', eventRow?.location ?? ''],
          ])}
-         ${qrSection(tokensList)}`,
+         ${attachmentsNotice(tokensList.length)}`,
         branchUrl(siteUrl, branchSlug, 'catas'),
         'Ver catas',
       )
