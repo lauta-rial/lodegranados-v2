@@ -312,6 +312,9 @@ Deno.serve(async (req) => {
         }
       }
 
+      // available_spots is derived by a DB trigger from this table's rows
+      // (see migration add_total_spots_and_self_healing_course_spots) —
+      // inserting here is what updates the count, no separate decrement call needed.
       const { error: dbErr } = await supabase.from('enrollments').insert({
         course_id: ref,
         user_id: userId ?? null,
@@ -327,9 +330,6 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
       }
-
-      const { error: decrementErr } = await supabase.rpc('decrement_course_spots', { p_course_id: ref })
-      if (decrementErr) console.error('decrement_course_spots error:', decrementErr.message)
 
       const html = emailBase(
         'Inscripción confirmada',

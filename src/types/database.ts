@@ -71,6 +71,7 @@ export type Database = {
           syllabus: Json | null
           title: string
           total_classes: number
+          total_spots: number
           updated_at: string | null
         }
         Insert: {
@@ -89,6 +90,7 @@ export type Database = {
           syllabus?: Json | null
           title: string
           total_classes: number
+          total_spots?: number
           updated_at?: string | null
         }
         Update: {
@@ -107,6 +109,7 @@ export type Database = {
           syllabus?: Json | null
           title?: string
           total_classes?: number
+          total_spots?: number
           updated_at?: string | null
         }
         Relationships: []

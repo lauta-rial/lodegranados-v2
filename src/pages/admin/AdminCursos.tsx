@@ -98,7 +98,7 @@ function CoursesTab() {
                   {isSuperAdmin && <td className="px-4 py-3 text-[var(--color-dark-muted)]">{c.branches?.name ?? '—'}</td>}
                   <td className="px-4 py-3 text-[var(--color-dark-muted)]">{c.instructor_name}</td>
                   <td className="px-4 py-3 text-[var(--color-dark-muted)] capitalize">{formatDate(c.start_date)}</td>
-                  <td className="px-4 py-3 text-[var(--color-dark-muted)]">{c.available_spots}</td>
+                  <td className="px-4 py-3 text-[var(--color-dark-muted)]">{c.available_spots}/{c.total_spots}</td>
                   <td className="px-4 py-3 text-[var(--color-dark-muted)]">{c.price ? formatPrice(c.price) : '—'}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-2">
@@ -141,6 +141,7 @@ function CourseModal({ open, course, branchId, onClose, onSaved }: { open: boole
     start_date: course?.start_date ?? '',
     schedule: course?.schedule ?? '',
     price: course?.price?.toString() ?? '',
+    total_spots: course?.total_spots?.toString() ?? '',
     available_spots: course?.available_spots?.toString() ?? '',
     syllabus: Array.isArray(course?.syllabus) ? (course.syllabus as string[]).join('\n') : '',
     image_url: course?.image_url ?? '',
@@ -171,6 +172,7 @@ function CourseModal({ open, course, branchId, onClose, onSaved }: { open: boole
       start_date: form.start_date,
       schedule: form.schedule || null,
       price: form.price ? parseInt(form.price) : null,
+      total_spots: parseInt(form.total_spots),
       available_spots: parseInt(form.available_spots),
       syllabus: form.syllabus ? form.syllabus.split('\n').filter(Boolean) : null,
       image_url: form.image_url || null,
@@ -202,12 +204,15 @@ function CourseModal({ open, course, branchId, onClose, onSaved }: { open: boole
           <FormField label="Horario (ej: Lunes 19:00)"><input className={fieldClass} value={form.schedule} onChange={e => setForm(f => ({ ...f, schedule: e.target.value }))} /></FormField>
         </div>
         <FormField label="Bio del instructor"><textarea rows={2} className={`${fieldClass} resize-none`} value={form.instructor_bio} onChange={e => setForm(f => ({ ...f, instructor_bio: e.target.value }))} /></FormField>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 gap-4">
           <FormField label="Fecha de inicio"><input required type="date" className={fieldClass} value={form.start_date} onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))} /></FormField>
           <FormField label="N° de clases"><input required type="number" min="1" className={fieldClass} value={form.total_classes} onChange={e => setForm(f => ({ ...f, total_classes: e.target.value }))} /></FormField>
-          <FormField label="Lugares disponibles"><input required type="number" min="0" className={fieldClass} value={form.available_spots} onChange={e => setForm(f => ({ ...f, available_spots: e.target.value }))} /></FormField>
         </div>
-        <FormField label="Precio (ARS)"><input type="number" min="0" className={fieldClass} value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} /></FormField>
+        <div className="grid grid-cols-3 gap-4">
+          <FormField label="Cupos totales"><input required type="number" min="1" className={fieldClass} value={form.total_spots} onChange={e => setForm(f => ({ ...f, total_spots: e.target.value }))} /></FormField>
+          <FormField label="Cupos disponibles"><input required type="number" min="0" className={fieldClass} value={form.available_spots} onChange={e => setForm(f => ({ ...f, available_spots: e.target.value }))} /></FormField>
+          <FormField label="Precio (ARS)"><input type="number" min="0" className={fieldClass} value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} /></FormField>
+        </div>
         <FormField label="Temario (un tema por línea)"><textarea rows={4} className={`${fieldClass} resize-none`} value={form.syllabus} onChange={e => setForm(f => ({ ...f, syllabus: e.target.value }))} placeholder="Introducción al análisis sensorial&#10;Variedades de uva&#10;..." /></FormField>
         <FormField label="Imagen">
           <ImageUpload folder="courses/" value={form.image_url} onChange={url => setForm(f => ({ ...f, image_url: url }))} dimensions="800 × 600 px · ratio 4:3" />
