@@ -4,6 +4,7 @@ import { AuthProvider } from '@/context/AuthContext'
 import { Layout } from '@/components/layout/Layout'
 import { BranchLayout } from '@/components/layout/BranchLayout'
 import { AdminLayout } from '@/components/admin/AdminLayout'
+import { SuperAdminRoute } from '@/components/admin/SuperAdminRoute'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 
 import { Home } from '@/pages/Home'
@@ -74,8 +75,8 @@ export default function App() {
             <Route path="cursos" element={<Suspense><AdminCursos /></Suspense>} />
             <Route path="club" element={<Suspense><AdminClub /></Suspense>} />
             <Route path="consultas" element={<Suspense><AdminConsultas /></Suspense>} />
-            <Route path="sucursales" element={<Suspense><AdminSucursales /></Suspense>} />
-            <Route path="newsletter" element={<Suspense><AdminNewsletter /></Suspense>} />
+            <Route path="sucursales" element={<SuperAdminRoute><Suspense><AdminSucursales /></Suspense></SuperAdminRoute>} />
+            <Route path="newsletter" element={<SuperAdminRoute><Suspense><AdminNewsletter /></Suspense></SuperAdminRoute>} />
             <Route path="scanner/:eventId" element={<Suspense><AdminScanner /></Suspense>} />
           </Route>
         </Routes>
