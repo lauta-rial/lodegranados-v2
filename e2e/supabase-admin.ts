@@ -159,3 +159,58 @@ export async function deleteLatestSubscription(planId: string): Promise<void> {
   const delRes = await fetch(`${SUPABASE_URL}/rest/v1/subscriptions?id=eq.${row.id}`, { method: 'DELETE', headers })
   if (!delRes.ok) throw new Error(`Failed to delete subscription: ${delRes.status} ${await delRes.text()}`)
 }
+
+// --- Scanner test helpers ---
+// Mirrors the exact reads/writes AdminScanner.tsx's onScan() does against
+// `tickets`, so the single-use validation rule can be tested without a real
+// camera + rendered QR code (browser test environments have neither).
+
+export async function insertTicket(eventId: string, registrationId: string): Promise<{ id: string; token: string }> {
+  const serviceRoleKey = requireServiceRoleKey()
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/tickets`, {
+    method: 'POST',
+    headers: {
+      apikey: serviceRoleKey,
+      Authorization: `Bearer ${serviceRoleKey}`,
+      'Content-Type': 'application/json',
+      Prefer: 'return=representation',
+    },
+    body: JSON.stringify({ event_id: eventId, registration_id: registrationId }),
+  })
+  if (!res.ok) throw new Error(`Failed to insert ticket: ${res.status} ${await res.text()}`)
+  const [row] = await res.json()
+  return { id: row.id, token: row.token }
+}
+
+export async function getTicketByToken(token: string, eventId: string): Promise<{ id: string; validated_at: string | null } | null> {
+  const serviceRoleKey = requireServiceRoleKey()
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/tickets?token=eq.${token}&event_id=eq.${eventId}&select=id,validated_at`,
+    { headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}` } }
+  )
+  if (!res.ok) throw new Error(`Failed to read ticket: ${res.status} ${await res.text()}`)
+  const [row] = await res.json()
+  return row ?? null
+}
+
+export async function validateTicket(token: string): Promise<void> {
+  const serviceRoleKey = requireServiceRoleKey()
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/tickets?token=eq.${token}`, {
+    method: 'PATCH',
+    headers: {
+      apikey: serviceRoleKey,
+      Authorization: `Bearer ${serviceRoleKey}`,
+      'Content-Type': 'application/json',
+      Prefer: 'return=minimal',
+    },
+    body: JSON.stringify({ validated_at: new Date().toISOString() }),
+  })
+  if (!res.ok) throw new Error(`Failed to validate ticket: ${res.status} ${await res.text()}`)
+}
+
+export async function deleteTicketAndRegistration(ticketId: string, registrationId: string): Promise<void> {
+  const serviceRoleKey = requireServiceRoleKey()
+  const headers = { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}` }
+  await fetch(`${SUPABASE_URL}/rest/v1/tickets?id=eq.${ticketId}`, { method: 'DELETE', headers })
+  await fetch(`${SUPABASE_URL}/rest/v1/registrations?id=eq.${registrationId}`, { method: 'DELETE', headers })
+}
