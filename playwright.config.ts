@@ -1,16 +1,9 @@
 import { defineConfig, devices } from '@playwright/test'
-import { existsSync, readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { config as loadEnv } from 'dotenv'
 
-// Minimal .env.local loader (no dotenv dependency) — only fills in vars that
-// aren't already set, so CI/shell env still takes priority.
-const envLocalPath = resolve(process.cwd(), '.env.local')
-if (existsSync(envLocalPath)) {
-  for (const line of readFileSync(envLocalPath, 'utf-8').split('\n')) {
-    const match = line.match(/^([A-Z0-9_]+)="?(.*?)"?$/)
-    if (match && !(match[1] in process.env)) process.env[match[1]] = match[2]
-  }
-}
+// dotenv doesn't override already-set vars by default, so CI/shell env still
+// takes priority over .env.local.
+loadEnv({ path: '.env.local' })
 
 export default defineConfig({
   testDir: './e2e',
