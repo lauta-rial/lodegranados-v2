@@ -121,3 +121,41 @@ export async function deleteEnrollment(id: string): Promise<void> {
   })
   if (!res.ok) throw new Error(`Failed to delete enrollment: ${res.status} ${await res.text()}`)
 }
+
+// Cleanup after a real (sandbox) purchase flow — deletes by course/email
+// instead of by id since the id is generated server-side by the edge
+// function, not returned to the test.
+export async function deleteEnrollmentsByEmail(courseId: string, email: string): Promise<void> {
+  const serviceRoleKey = requireServiceRoleKey()
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/enrollments?course_id=eq.${courseId}&email=eq.${encodeURIComponent(email)}`,
+    { method: 'DELETE', headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}` } }
+  )
+  if (!res.ok) throw new Error(`Failed to delete enrollments by email: ${res.status} ${await res.text()}`)
+}
+
+export async function deleteRegistrationsByEmail(eventId: string, email: string): Promise<void> {
+  const serviceRoleKey = requireServiceRoleKey()
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/registrations?event_id=eq.${eventId}&email=eq.${encodeURIComponent(email)}`,
+    { method: 'DELETE', headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}` } }
+  )
+  if (!res.ok) throw new Error(`Failed to delete registrations by email: ${res.status} ${await res.text()}`)
+}
+
+// subscriptions has no email column (guest checkout has no user_id either),
+// so cleanup targets the most recently created row for the plan instead —
+// safe as long as tests in this plan aren't run concurrently.
+export async function deleteLatestSubscription(planId: string): Promise<void> {
+  const serviceRoleKey = requireServiceRoleKey()
+  const headers = { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}` }
+  const findRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/subscriptions?plan_id=eq.${planId}&select=id&order=created_at.desc&limit=1`,
+    { headers }
+  )
+  if (!findRes.ok) throw new Error(`Failed to find subscription to delete: ${findRes.status} ${await findRes.text()}`)
+  const [row] = await findRes.json()
+  if (!row) return
+  const delRes = await fetch(`${SUPABASE_URL}/rest/v1/subscriptions?id=eq.${row.id}`, { method: 'DELETE', headers })
+  if (!delRes.ok) throw new Error(`Failed to delete subscription: ${delRes.status} ${await delRes.text()}`)
+}
