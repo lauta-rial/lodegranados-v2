@@ -41,20 +41,36 @@ function branchUrl(siteUrl: string, branchSlug: string | undefined | null, path:
   return branchSlug ? `${siteUrl}/${branchSlug}/${path}` : siteUrl
 }
 
+// branchSlug/title are derived here from the DB via `ref`, rather than trusted
+// purely from the caller's `data` payload — mp-webhook (the server-to-server
+// MP webhook, which can legitimately win the idempotency race against the
+// browser's own call) never had branch/title info to send, which produced
+// confirmation emails with a broken CTA link and a blank course name. `meta`
+// values (when a caller does have them) still take priority — this is only
+// a fallback.
+async function resolveBranchSlug(branchId: string | null | undefined): Promise<string | null> {
+  if (!branchId) return null
+  const { data } = await supabase.from('branches').select('slug').eq('id', branchId).maybeSingle()
+  return data?.slug ?? null
+}
+
 function formatEventDateTime(date: string | null, time: string | null): string {
   if (!date) return ''
-  // Matches formatDate() in src/lib/utils.ts: parse the date-only string as UTC
-  // midnight, then render in Argentina's timezone explicitly (not the server's
-  // ambient TZ) so the date shown here always matches what the site displays.
+  // events.date is a plain calendar date with no time-of-day/timezone — it
+  // means "this day", full stop. new Date(date) anchors it to UTC midnight of
+  // the right day, so formatting in UTC preserves that day exactly. (Do NOT
+  // format this in America/Argentina/Buenos_Aires — that shifts UTC midnight
+  // back to 21:00 the PREVIOUS day, showing the wrong date/weekday for every
+  // single event. Matches formatDate() in src/lib/utils.ts, same reasoning.)
   const dateLabel = new Intl.DateTimeFormat('es-AR', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-    timeZone: 'America/Argentina/Buenos_Aires',
+    timeZone: 'UTC',
   }).format(new Date(date))
   const timeLabel = time ? ` · ${time.slice(0, 5)} hs` : ''
   return `${dateLabel}${timeLabel}`
 }
 
-function qrPngUrl(token: string, size = 220): string {
+function qrPngUrl(token: string, size: number): string {
   return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${token}&bgcolor=ffffff&color=6b2737&margin=10`
 }
 
@@ -91,13 +107,27 @@ function detailsCard(rows: Array<[string, string]>): string {
 
 // The QR codes themselves only live in the attached PDFs now — the body just
 // points to them, so the email doesn't duplicate the same ticket twice.
-function attachmentsNotice(count: number): string {
-  const label = count > 1
-    ? `Te adjuntamos tus ${count} entradas en PDF, cada una por separado — reenviá solo la que corresponda si compartís la reserva.`
-    : 'Te adjuntamos tu entrada en PDF — mostrá el código QR en el ingreso.'
+// `attached` reflects what actually made it into the email (some tickets' PDF
+// generation can fail independently — see buildAllTicketPdfs), not how many
+// tickets were purchased, so this never claims something isn't really there.
+function attachmentsNotice(attached: number, expected: number): string {
+  if (attached === 0) {
+    return `<div style="margin-top:28px;border-top:1px solid #e8e1d9;padding-top:24px;text-align:center">
+      <p style="color:#b45309;font-size:13px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin:0 0 8px">
+        No pudimos generar tu${expected > 1 ? 's' : ''} entrada${expected > 1 ? 's' : ''} en PDF
+      </p>
+      <p style="color:#3d2b1f;font-size:13px;line-height:1.6;margin:0">Respondé este email o escribinos y te la reenviamos.</p>
+    </div>`
+  }
+  const partialNote = attached < expected
+    ? ` (no pudimos generar ${expected - attached} — respondé este email si te falta alguna)`
+    : ''
+  const label = attached > 1
+    ? `Te adjuntamos ${attached} entradas en PDF, cada una por separado — reenviá solo la que corresponda si compartís la reserva.${partialNote}`
+    : `Te adjuntamos tu entrada en PDF — mostrá el código QR en el ingreso.${partialNote}`
   return `<div style="margin-top:28px;border-top:1px solid #e8e1d9;padding-top:24px;text-align:center">
     <p style="color:#6b2737;font-size:13px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin:0 0 8px">
-      ${count > 1 ? `${count} entradas adjuntas (PDF)` : 'Entrada adjunta (PDF)'}
+      ${attached > 1 ? `${attached} entradas adjuntas (PDF)` : 'Entrada adjunta (PDF)'}
     </p>
     <p style="color:#3d2b1f;font-size:13px;line-height:1.6;margin:0">${label}</p>
   </div>`
@@ -115,6 +145,8 @@ function drawCenteredText(page: PDFPage, text: string, font: PDFFont, size: numb
 
 // One ticket per PDF — each attachment is self-contained (event info + a single
 // centered QR) so a buyer can forward just one entrada without exposing the rest.
+// Fonts are embedded once and shared across all tickets in a reservation rather
+// than per-ticket, since standard fonts have no per-document state.
 async function buildTicketPdf(params: {
   eventTitle: string
   dateTimeLabel: string
@@ -122,15 +154,17 @@ async function buildTicketPdf(params: {
   index: number
   total: number
   token: string
+  bold: PDFFont
+  regular: PDFFont
 }): Promise<Uint8Array> {
   const qrRes = await fetch(qrPngUrl(params.token, 440))
+  if (!qrRes.ok) throw new Error(`QR fetch failed: ${qrRes.status}`)
   const qrBytes = new Uint8Array(await qrRes.arrayBuffer())
 
   const doc = await PDFDocument.create()
   const page = doc.addPage([420, 620])
   const width = page.getWidth()
-  const bold = await doc.embedFont(StandardFonts.HelveticaBold)
-  const regular = await doc.embedFont(StandardFonts.Helvetica)
+  const { bold, regular } = params
 
   page.drawRectangle({ x: 0, y: page.getHeight() - 96, width, height: 96, color: WINE })
   drawCenteredText(page, 'LO DE GRANADOS', bold, 11, page.getHeight() - 38, CREAM)
@@ -158,6 +192,40 @@ async function buildTicketPdf(params: {
   return doc.save()
 }
 
+// Builds every ticket PDF independently — one failing (e.g. a transient QR
+// fetch error) no longer takes the rest down with it (Promise.all would
+// reject the whole batch on a single rejection).
+async function buildAllTicketPdfs(
+  tokensList: string[],
+  eventTitle: string,
+  dateTimeLabel: string,
+  location: string,
+): Promise<Attachment[]> {
+  if (tokensList.length === 0) return []
+  const fontDoc = await PDFDocument.create()
+  const bold = await fontDoc.embedFont(StandardFonts.HelveticaBold)
+  const regular = await fontDoc.embedFont(StandardFonts.Helvetica)
+
+  const results = await Promise.allSettled(
+    tokensList.map((token, i) =>
+      buildTicketPdf({ eventTitle, dateTimeLabel, location, index: i + 1, total: tokensList.length, token, bold, regular })
+    )
+  )
+
+  const attachments: Attachment[] = []
+  results.forEach((result, i) => {
+    if (result.status === 'fulfilled') {
+      attachments.push({
+        filename: tokensList.length > 1 ? `entrada-${i + 1}-de-${tokensList.length}.pdf` : 'entrada.pdf',
+        content: encodeBase64(result.value),
+      })
+    } else {
+      console.error(`PDF generation failed for ticket ${i + 1}/${tokensList.length}:`, result.reason)
+    }
+  })
+  return attachments
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -168,7 +236,6 @@ Deno.serve(async (req) => {
     const { type, ref, paymentId, userId, payerName, payerEmail, to, name, data: meta } = body
 
     const siteUrl = meta?.siteUrl ?? 'https://lodegranados-v2-chi.vercel.app'
-    const branchSlug = meta?.branchSlug ?? null
     const spots = Math.max(1, parseInt(meta?.spots ?? '1') || 1)
     const greetingName = payerName || name
 
@@ -252,34 +319,15 @@ Deno.serve(async (req) => {
 
       const { data: eventRow } = await supabase
         .from('events')
-        .select('date, time, location')
+        .select('title, date, time, location, branch_id')
         .eq('id', ref)
         .maybeSingle()
 
       const dateTimeLabel = formatEventDateTime(eventRow?.date ?? null, eventRow?.time ?? null)
-      const eventTitle = meta?.title ?? 'Lo de Granados'
+      const eventTitle = meta?.title ?? eventRow?.title ?? 'Lo de Granados'
+      const branchSlug = meta?.branchSlug ?? await resolveBranchSlug(eventRow?.branch_id)
 
-      let attachments: Attachment[] = []
-      try {
-        const pdfs = await Promise.all(
-          tokensList.map((token: string, i: number) =>
-            buildTicketPdf({
-              eventTitle,
-              dateTimeLabel,
-              location: eventRow?.location ?? '',
-              index: i + 1,
-              total: tokensList.length,
-              token,
-            })
-          )
-        )
-        attachments = pdfs.map((bytes, i) => ({
-          filename: tokensList.length > 1 ? `entrada-${i + 1}-de-${tokensList.length}.pdf` : 'entrada.pdf',
-          content: encodeBase64(bytes),
-        }))
-      } catch (pdfErr) {
-        console.error('PDF ticket generation error:', pdfErr instanceof Error ? pdfErr.message : pdfErr)
-      }
+      const attachments = await buildAllTicketPdfs(tokensList, eventTitle, dateTimeLabel, eventRow?.location ?? '')
 
       const spotsLabel = spots > 1 ? ` (${spots} entradas)` : ''
       const html = emailBase(
@@ -290,7 +338,7 @@ Deno.serve(async (req) => {
            ['Cuándo', dateTimeLabel],
            ['Dónde', eventRow?.location ?? ''],
          ])}
-         ${attachmentsNotice(tokensList.length)}`,
+         ${attachmentsNotice(attachments.length, tokensList.length)}`,
         branchUrl(siteUrl, branchSlug, 'catas'),
         'Ver catas',
       )
@@ -331,10 +379,18 @@ Deno.serve(async (req) => {
         })
       }
 
+      const { data: courseRow } = await supabase
+        .from('courses')
+        .select('title, branch_id')
+        .eq('id', ref)
+        .maybeSingle()
+      const courseTitle = meta?.title ?? courseRow?.title ?? ''
+      const branchSlug = meta?.branchSlug ?? await resolveBranchSlug(courseRow?.branch_id)
+
       const html = emailBase(
         'Inscripción confirmada',
         `<p style="color:#3d2b1f;line-height:1.7">Hola <strong>${greetingName}</strong>,</p>
-         <p style="color:#3d2b1f;line-height:1.7">Tu inscripción al curso <strong>${meta?.title ?? ''}</strong>${meta?.price ? ` por <strong>${meta.price}</strong>` : ''} fue confirmada. Te contactaremos con más detalles.</p>`,
+         <p style="color:#3d2b1f;line-height:1.7">Tu inscripción al curso <strong>${courseTitle}</strong>${meta?.price ? ` por <strong>${meta.price}</strong>` : ''} fue confirmada. Te contactaremos con más detalles.</p>`,
         branchUrl(siteUrl, branchSlug, 'cursos'),
         'Ver cursos',
       )
@@ -356,7 +412,7 @@ Deno.serve(async (req) => {
         }
       }
 
-      const { data: plan } = await supabase.from('plans').select('branch_id, price').eq('id', ref).single()
+      const { data: plan } = await supabase.from('plans').select('name, branch_id, price').eq('id', ref).single()
 
       const { error: dbErr } = await supabase.from('subscriptions').insert({
         plan_id: ref,
@@ -375,10 +431,13 @@ Deno.serve(async (req) => {
         })
       }
 
+      const planTitle = meta?.title ?? plan?.name ?? 'Club DeVinos'
+      const branchSlug = meta?.branchSlug ?? await resolveBranchSlug(plan?.branch_id)
+
       const html = emailBase(
         '¡Bienvenido/a al Club!',
         `<p style="color:#3d2b1f;line-height:1.7">Hola <strong>${greetingName}</strong>,</p>
-         <p style="color:#3d2b1f;line-height:1.7">Tu suscripción al <strong>${meta?.title ?? 'Club DeVinos'}</strong>${meta?.price ? ` (${meta.price}/mes)` : ''} fue activada. Cada mes recibirás vinos seleccionados por nuestro sommelier.</p>`,
+         <p style="color:#3d2b1f;line-height:1.7">Tu suscripción al <strong>${planTitle}</strong>${meta?.price ? ` (${meta.price}/mes)` : ''} fue activada. Cada mes recibirás vinos seleccionados por nuestro sommelier.</p>`,
         branchUrl(siteUrl, branchSlug, 'club'),
         'Ver mi Club',
       )

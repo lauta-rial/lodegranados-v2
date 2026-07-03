@@ -17,7 +17,6 @@ export function PagoExitoso() {
   const type = params.get('type') ?? ''
   const ref = params.get('ref') ?? ''
   const paymentId = params.get('payment_id') ?? ''
-  const preapprovalId = params.get('preapproval_id') ?? ''
   const status = params.get('status') ?? ''
   const processed = useRef(false)
 
@@ -33,11 +32,14 @@ export function PagoExitoso() {
   useEffect(() => {
     if (processed.current || !ref || authLoading) return
     // create-mp-preference (used for events/courses/plans alike today) always
-    // redirects back as a one-time payment with status=approved — plans never
-    // actually come back with preapproval_id because nothing wires up MP's
-    // real recurring Preapproval flow yet. Accept either shape so a future
-    // switch to real preapprovals for plans doesn't silently break this again.
-    if (status !== 'approved' && !preapprovalId) return
+    // redirects back as a one-time payment — status=approved is the only
+    // trustworthy signal. (A prior version also accepted a `preapproval_id`
+    // query param as an alternative, but that's fully client-controlled and
+    // never actually set by this checkout flow — it only opened a bypass
+    // where an unapproved payment could be replayed as approved by editing
+    // the URL. If real MP recurring Preapproval billing is wired up later,
+    // reintroduce a dedicated, server-verified signal then.)
+    if (status !== 'approved') return
 
     const raw = sessionStorage.getItem('mp_checkout')
     if (!raw) return
@@ -61,7 +63,7 @@ export function PagoExitoso() {
           type: emailType[type] ?? 'reservation',
           purchaseType: type,   // 'event' | 'course' | 'plan' — used for DB insert
           ref,
-          paymentId: preapprovalId || paymentId,
+          paymentId,
           userId: user?.id ?? null,
           payerName,
           payerEmail,
@@ -80,7 +82,7 @@ export function PagoExitoso() {
     } catch {
       // silent — both DB write and email are best-effort
     }
-  }, [type, ref, paymentId, preapprovalId, status, user, authLoading])
+  }, [type, ref, paymentId, status, user, authLoading])
 
   const prefix = branchSlug ? `/${branchSlug}` : ''
   const backLink =
