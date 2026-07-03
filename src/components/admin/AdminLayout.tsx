@@ -4,6 +4,7 @@ import { useAuth } from '@/context/AuthContext'
 import { AdminProvider } from '@/context/AdminContext'
 import { Sidebar } from './Sidebar'
 import { supabase } from '@/lib/supabase'
+import { getUserRole, getUserBranchId } from '@/lib/adminRole'
 
 function AdminLoginForm() {
   const [email, setEmail] = useState('')
@@ -71,11 +72,10 @@ export function AdminLayout() {
 
   if (!user) return <AdminLoginForm />
 
-  const role = user.app_metadata?.role ?? user.user_metadata?.role
-  const isAllowed = role === 'admin' || role === 'superadmin'
-  if (!isAllowed) return <Navigate to="/" replace />
+  const role = getUserRole(user)
+  if (!role) return <Navigate to="/" replace />
 
-  const branchId = user.app_metadata?.branch_id ?? user.user_metadata?.branch_id ?? null
+  const branchId = getUserBranchId(user)
   if (role === 'admin' && !branchId) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[var(--color-cream)] p-4">
