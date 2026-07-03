@@ -32,11 +32,12 @@ export function PagoExitoso() {
 
   useEffect(() => {
     if (processed.current || !ref || authLoading) return
-    // Subscriptions: MP redirects with preapproval_id (no status param)
-    // One-time payments: require status=approved
-    const isSubscription = type === 'plan'
-    if (!isSubscription && status !== 'approved') return
-    if (isSubscription && !preapprovalId) return
+    // create-mp-preference (used for events/courses/plans alike today) always
+    // redirects back as a one-time payment with status=approved — plans never
+    // actually come back with preapproval_id because nothing wires up MP's
+    // real recurring Preapproval flow yet. Accept either shape so a future
+    // switch to real preapprovals for plans doesn't silently break this again.
+    if (status !== 'approved' && !preapprovalId) return
 
     const raw = sessionStorage.getItem('mp_checkout')
     if (!raw) return
@@ -60,7 +61,7 @@ export function PagoExitoso() {
           type: emailType[type] ?? 'reservation',
           purchaseType: type,   // 'event' | 'course' | 'plan' — used for DB insert
           ref,
-          paymentId: isSubscription ? preapprovalId : paymentId,
+          paymentId: preapprovalId || paymentId,
           userId: user?.id ?? null,
           payerName,
           payerEmail,
