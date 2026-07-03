@@ -4,6 +4,7 @@ import { Menu, X, ChevronDown, LayoutDashboard, LogOut, User } from 'lucide-reac
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/AuthContext'
 import { useBranch } from '@/context/BranchContext'
+import { getUserRole } from '@/lib/adminRole'
 
 export function Navbar() {
   const [open, setOpen] = useState(false)
@@ -12,7 +13,7 @@ export function Navbar() {
   const branch = useBranch()
   const navigate = useNavigate()
 
-  const isAdmin = user?.user_metadata?.role === 'admin' || user?.user_metadata?.role === 'superadmin'
+  const isAdmin = getUserRole(user) !== null
   const displayName = user?.user_metadata?.full_name ?? user?.email?.split('@')[0] ?? 'Mi cuenta'
   const avatarUrl = user?.user_metadata?.avatar_url as string | undefined
 

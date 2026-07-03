@@ -145,8 +145,11 @@ function drawCenteredText(page: PDFPage, text: string, font: PDFFont, size: numb
 
 // One ticket per PDF — each attachment is self-contained (event info + a single
 // centered QR) so a buyer can forward just one entrada without exposing the rest.
-// Fonts are embedded once and shared across all tickets in a reservation rather
-// than per-ticket, since standard fonts have no per-document state.
+// Fonts are embedded fresh per ticket: a PDFFont from pdf-lib holds an indirect
+// reference that's only meaningful inside the PDFDocument that embedded it —
+// reusing one across separate documents corrupts the font resource on save
+// (confirmed: pypdf couldn't even parse the font dict of a shared-font PDF).
+// Standard-font embedding is cheap, so there's no real cost to doing it per doc.
 async function buildTicketPdf(params: {
   eventTitle: string
   dateTimeLabel: string
@@ -154,17 +157,16 @@ async function buildTicketPdf(params: {
   index: number
   total: number
   token: string
-  bold: PDFFont
-  regular: PDFFont
 }): Promise<Uint8Array> {
   const qrRes = await fetch(qrPngUrl(params.token, 440))
   if (!qrRes.ok) throw new Error(`QR fetch failed: ${qrRes.status}`)
   const qrBytes = new Uint8Array(await qrRes.arrayBuffer())
 
   const doc = await PDFDocument.create()
+  const bold = await doc.embedFont(StandardFonts.HelveticaBold)
+  const regular = await doc.embedFont(StandardFonts.Helvetica)
   const page = doc.addPage([420, 620])
   const width = page.getWidth()
-  const { bold, regular } = params
 
   page.drawRectangle({ x: 0, y: page.getHeight() - 96, width, height: 96, color: WINE })
   drawCenteredText(page, 'LO DE GRANADOS', bold, 11, page.getHeight() - 38, CREAM)
@@ -202,13 +204,10 @@ async function buildAllTicketPdfs(
   location: string,
 ): Promise<Attachment[]> {
   if (tokensList.length === 0) return []
-  const fontDoc = await PDFDocument.create()
-  const bold = await fontDoc.embedFont(StandardFonts.HelveticaBold)
-  const regular = await fontDoc.embedFont(StandardFonts.Helvetica)
 
   const results = await Promise.allSettled(
     tokensList.map((token, i) =>
-      buildTicketPdf({ eventTitle, dateTimeLabel, location, index: i + 1, total: tokensList.length, token, bold, regular })
+      buildTicketPdf({ eventTitle, dateTimeLabel, location, index: i + 1, total: tokensList.length, token })
     )
   )
 
