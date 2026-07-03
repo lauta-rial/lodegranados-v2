@@ -3,7 +3,7 @@ import { CalendarDays, BookOpen, Users, MessageSquare, ClipboardList, UserCheck 
 import { supabase } from '@/lib/supabase'
 import { useAdmin } from '@/context/AdminContext'
 import { Skeleton } from '@/components/ui/Skeleton'
-import { formatDate } from '@/lib/utils'
+import { formatDateTime } from '@/lib/utils'
 
 interface Counts {
   events: number
@@ -149,7 +149,7 @@ export function AdminDashboard() {
                     <td className="px-4 py-3 font-medium text-[var(--color-dark)]">{inq.name}</td>
                     <td className="px-4 py-3 text-[var(--color-dark-muted)]">{inq.email}</td>
                     <td className="px-4 py-3 text-[var(--color-muted)] capitalize">
-                      {inq.created_at ? formatDate(inq.created_at) : '—'}
+                      {inq.created_at ? formatDateTime(inq.created_at) : '—'}
                     </td>
                     <td className="px-4 py-3">
                       <StatusBadge status={inq.status} />

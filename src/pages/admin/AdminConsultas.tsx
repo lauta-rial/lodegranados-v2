@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { useAdmin } from '@/context/AdminContext'
 import { StatusBadge } from './AdminDashboard'
 import { Skeleton } from '@/components/ui/Skeleton'
-import { formatDate } from '@/lib/utils'
+import { formatDateTime } from '@/lib/utils'
 import type { Inquiry } from '@/types/database'
 
 const statuses = ['all', 'new', 'read', 'archived'] as const
@@ -76,7 +76,7 @@ export function AdminConsultas() {
                     <StatusBadge status={inq.status} />
                   </div>
                   <p className="mt-0.5 text-sm text-[var(--color-muted)]">
-                    {inq.email} · {inq.created_at ? formatDate(inq.created_at) : ''}
+                    {inq.email} · {inq.created_at ? formatDateTime(inq.created_at) : ''}
                   </p>
                   <p className="mt-3 text-sm text-[var(--color-dark-muted)] leading-relaxed">{inq.message}</p>
                 </div>
