@@ -1,21 +1,7 @@
 import { test, expect, type Page } from '@playwright/test'
 import { waitForEmail } from './resend-client'
 import { getAvailableSpots, setAvailableSpots, getRegistrationsCount } from './supabase-admin'
-
-// NOT for CI — this pauses mid-test (page.pause()) waiting for a human to
-// complete the MercadoPago card form. MP's checkout blocks automated pointer
-// events on the entire card-form page (not just the Pagar button), so there's
-// no way to script past it. Run with `npx playwright test purchase-cata --headed`
-// and complete the card form yourself when the Inspector pops up.
-//
-// MercadoPago sandbox test card (see memory: mp-sandbox-testing):
-const TEST_CARD = {
-  number: '5031 7557 3453 0604', // Mastercard sandbox
-  holder: 'APRO', // triggers an approved payment
-  expiry: '11/30',
-  cvv: '123',
-  dni: '12345678',
-}
+import { payWithTestCard } from './purchase-helpers'
 
 const EVENT_ID = process.env.E2E_EVENT_ID ?? '09e0bd67-0667-497d-a055-a0169817a207'
 const EVENT_PATH = process.env.E2E_EVENT_PATH ?? '/pichincha/catas/09e0bd67-0667-497d-a055-a0169817a207'
@@ -50,13 +36,7 @@ async function buyTickets(page: Page, email: string, password: string, spots: nu
   }
   await page.getByRole('button', { name: /^Reservar/ }).click()
 
-  await page.getByRole('button', { name: 'Tarjeta Crédito, débito o' }).click()
-
-  console.log(`\n>>> Complete the card form for ${email} (${spots} entrada(s)) and click Pagar:`)
-  console.log(TEST_CARD)
-  await page.pause()
-
-  await expect(page).toHaveURL(/\/pago-exitoso/, { timeout: 30_000 })
+  await payWithTestCard(page, `${email} (${spots} entrada(s))`)
   await waitForEmail(email, 'Tu reserva está confirmada — Lo de Granados', { timeoutMs: 45_000 })
 }
 
