@@ -1,19 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, CheckCircle, XCircle, AlertCircle, CameraOff } from 'lucide-react'
+import { ArrowLeft, CheckCircle, XCircle, AlertCircle, CameraOff, ChevronRight } from 'lucide-react'
 import { Html5Qrcode } from 'html5-qrcode'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/context/AuthContext'
 import { formatDate, formatPrice } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/Skeleton'
-import type { Event } from '@/types/database'
+import type { Event, EventSession } from '@/types/database'
 
-type EventStatus = 'not_started' | 'live' | 'ended'
+type LifecycleStatus = 'not_started' | 'live' | 'ended'
 
-function getEventStatus(event: Pick<Event, 'started_at' | 'ended_at'>): EventStatus {
-  if (!event.started_at) return 'not_started'
-  if (!event.ended_at) return 'live'
+function getLifecycleStatus(session: Pick<EventSession, 'started_at' | 'ended_at'>): LifecycleStatus {
+  if (!session.started_at) return 'not_started'
+  if (!session.ended_at) return 'live'
   return 'ended'
 }
 
@@ -29,8 +29,10 @@ type TicketRow = {
 
 type TicketWithPosition = TicketRow & { position: number; total: number }
 
-// Same computation AdminScanner's onScan() does for a scanned ticket's
-// siblings, applied to the whole roster instead of a single ticket.
+// Same computation the scanner does for a scanned ticket's siblings, applied
+// to the whole roster instead of a single ticket. For a curso session every
+// registration has exactly 1 ticket (spots is always 1), so this collapses
+// to position=1/total=1 for every row — the label just doesn't render then.
 function groupTickets(tickets: TicketRow[]): TicketWithPosition[] {
   const groups = new Map<string, TicketRow[]>()
   for (const t of tickets) {
@@ -49,6 +51,18 @@ export function AdminEventLive() {
   const { eventId } = useParams<{ eventId: string }>()
   const navigate = useNavigate()
   const qc = useQueryClient()
+  // Only tracks an *explicit* pick from the multi-session picker — the
+  // single-session case (every cata, and a curso with just one class so
+  // far) is derived below instead of mirrored into state via an effect.
+  // An effect-based "auto-select" here previously left a one-render window
+  // where the header/buttons already rendered as if a session were active
+  // (status falls back to 'not_started' when selectedSession is null, which
+  // looks identical to a real not-started session) before the effect had
+  // actually run — a real click landing in that window silently no-op'd
+  // (updateSession's `if (!selectedSessionId) return` guard). Deriving it
+  // inline closes that window: it's correct in the same render `sessions`
+  // arrives in, no extra round trip.
+  const [manualSessionId, setManualSessionId] = useState<string | null>(null)
 
   const { data: event } = useQuery<Event>({
     queryKey: ['event', eventId],
@@ -60,59 +74,132 @@ export function AdminEventLive() {
     enabled: !!eventId,
   })
 
-  const { data: tickets, isLoading: ticketsLoading, isError: ticketsError } = useQuery<TicketRow[]>({
-    queryKey: ['event-tickets', eventId],
+  const { data: sessions, isLoading: sessionsLoading } = useQuery<EventSession[]>({
+    queryKey: ['event-sessions', eventId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('tickets')
-        .select('id, token, validated_at, attendee_email, registration_id, created_at, registrations(name, email, spots)')
+        .from('event_sessions')
+        .select('*')
         .eq('event_id', eventId!)
-        .order('created_at', { ascending: true })
+        .order('session_number', { ascending: true })
       if (error) throw error
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return (data ?? []) as any as TicketRow[]
+      return data
     },
     enabled: !!eventId,
   })
 
-  const status: EventStatus = event ? getEventStatus(event) : 'not_started'
+  const multiSession = (sessions?.length ?? 0) > 1
+  const singleSessionId = sessions?.length === 1 ? sessions[0].id : null
+  const selectedSessionId = manualSessionId ?? singleSessionId
+  const selectedSession = sessions?.find((s) => s.id === selectedSessionId) ?? null
+
+  const { data: tickets, isLoading: ticketsLoading, isError: ticketsError } = useQuery<TicketRow[]>({
+    queryKey: ['session-tickets', selectedSessionId],
+    queryFn: async () => {
+      // Tickets for the same registration/session are now created together
+      // in one DB-trigger loop (see migration
+      // per_session_tickets_and_session_lifecycle) — they share the exact
+      // same created_at (a Postgres transaction's now() doesn't advance
+      // between statements), so created_at alone doesn't give a stable
+      // order. Without a secondary key, ties can come back in a different
+      // order across queries, making "Entrada N/M" point at a different
+      // ticket after a reload. `id` never changes, so it's a stable
+      // (if arbitrary) tiebreaker.
+      const { data, error } = await supabase
+        .from('tickets')
+        .select('id, token, validated_at, attendee_email, registration_id, created_at, registrations(name, email, spots)')
+        .eq('session_id', selectedSessionId!)
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true })
+      if (error) throw error
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (data ?? []) as any as TicketRow[]
+    },
+    enabled: !!selectedSessionId,
+  })
+
+  const status: LifecycleStatus = selectedSession ? getLifecycleStatus(selectedSession) : 'not_started'
   const positioned = tickets ? groupTickets(tickets) : []
   const checkedIn = positioned.filter((t) => t.validated_at).length
 
-  async function updateEvent(patch: { started_at?: string | null; ended_at?: string | null }) {
-    if (!eventId) return
-    await supabase.from('events').update(patch).eq('id', eventId)
-    qc.invalidateQueries({ queryKey: ['event', eventId] })
+  async function updateSession(patch: { started_at?: string | null; ended_at?: string | null }) {
+    if (!selectedSessionId) return
+    await supabase.from('event_sessions').update(patch).eq('id', selectedSessionId)
+    qc.invalidateQueries({ queryKey: ['event-sessions', eventId] })
   }
 
   function handleStart() {
-    updateEvent({ started_at: new Date().toISOString() })
+    updateSession({ started_at: new Date().toISOString() })
   }
 
   function handleEnd() {
-    if (!confirm('¿Finalizar este evento? Podés reabrirlo después si hace falta.')) return
-    updateEvent({ ended_at: new Date().toISOString() })
+    if (!confirm('¿Finalizar esta clase? Podés reabrirla después si hace falta.')) return
+    updateSession({ ended_at: new Date().toISOString() })
   }
 
   function handleReopen() {
-    updateEvent({ ended_at: null })
+    updateSession({ ended_at: null })
   }
 
   function invalidateTickets() {
-    qc.invalidateQueries({ queryKey: ['event-tickets', eventId] })
+    qc.invalidateQueries({ queryKey: ['session-tickets', selectedSessionId] })
+  }
+
+  const goToList = () => navigate(event?.kind === 'curso' ? '/admin/cursos' : '/admin/catas')
+
+  function handleBack() {
+    if (multiSession) setManualSessionId(null)
+    else goToList()
+  }
+
+  // Sessions haven't resolved yet — render a neutral loading screen rather
+  // than the interactive header, since 'not_started' (selectedSession null)
+  // and a genuinely-not-yet-started real session look identical, and this
+  // is the window where a real click could otherwise land on a session
+  // that isn't selected yet.
+  if (sessionsLoading) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0d0d0d]">
+        <p className="text-sm text-white/50">Cargando…</p>
+      </div>
+    )
+  }
+
+  // Multi-session event (a curso with 2+ classes), no session picked yet —
+  // show the picker instead of jumping straight into a live/scan view.
+  if (multiSession && !selectedSessionId) {
+    return (
+      <div className="fixed inset-0 z-50 flex flex-col bg-[#0d0d0d]">
+        <div className="flex items-center gap-3 px-4 py-4 bg-[#1a1a1a]">
+          <button
+            onClick={goToList}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors"
+          >
+            <ArrowLeft size={18} />
+          </button>
+          <p className="truncate text-sm font-semibold text-white">{event?.title ?? 'Cargando…'}</p>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4">
+          <SessionPicker sessions={sessions ?? []} isLoading={sessionsLoading} onSelect={setManualSessionId} />
+        </div>
+      </div>
+    )
   }
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-[#0d0d0d]">
       <div className="flex items-center gap-3 px-4 py-4 bg-[#1a1a1a]">
         <button
-          onClick={() => navigate('/admin/catas')}
+          onClick={handleBack}
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors"
         >
           <ArrowLeft size={18} />
         </button>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-white">{event?.title ?? 'Cargando…'}</p>
+          <p className="truncate text-sm font-semibold text-white">
+            {event?.title ?? 'Cargando…'}
+            {multiSession && selectedSession && ` · Clase ${selectedSession.session_number}`}
+          </p>
           <div className="mt-1 flex items-center gap-2">
             <LiveStatusBadge status={status} />
             <span className="text-xs text-white/50">{checkedIn} / {positioned.length} ingresaron</span>
@@ -124,19 +211,19 @@ export function AdminEventLive() {
       <div className="flex-1 overflow-hidden p-4">
         {status === 'not_started' ? (
           <div className="mx-auto flex h-full max-w-2xl flex-col gap-4 overflow-y-auto">
-            <EventSummaryCard event={event} />
-            <RosterPanel tickets={positioned} isLoading={ticketsLoading} isError={ticketsError} eventId={eventId!} />
+            <EventSummaryCard event={event} session={selectedSession} />
+            <RosterPanel tickets={positioned} isLoading={ticketsLoading} isError={ticketsError} sessionId={selectedSessionId!} />
           </div>
         ) : (
           <div className="grid h-full grid-cols-1 gap-4 overflow-hidden md:grid-cols-[380px_1fr]">
             {status === 'live' && (
-              <TicketCameraPanel eventId={eventId!} onValidated={invalidateTickets} />
+              <TicketCameraPanel sessionId={selectedSessionId!} onValidated={invalidateTickets} />
             )}
             <RosterPanel
               tickets={positioned}
               isLoading={ticketsLoading}
               isError={ticketsError}
-              eventId={eventId!}
+              sessionId={selectedSessionId!}
               className={status === 'ended' ? 'md:col-span-2' : ''}
             />
           </div>
@@ -146,8 +233,50 @@ export function AdminEventLive() {
   )
 }
 
-function LiveStatusBadge({ status }: { status: EventStatus }) {
-  const map: Record<EventStatus, { label: string; className: string }> = {
+function SessionPicker({ sessions, isLoading, onSelect }: {
+  sessions: EventSession[]
+  isLoading: boolean
+  onSelect: (id: string) => void
+}) {
+  if (isLoading) {
+    return (
+      <div className="mx-auto max-w-xl space-y-2">
+        {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-16 w-full bg-white/10" />)}
+      </div>
+    )
+  }
+  if (!sessions.length) {
+    return <p className="p-8 text-center text-sm text-white/50">Todavía no hay clases para este curso.</p>
+  }
+  return (
+    <div className="mx-auto max-w-xl space-y-2">
+      {sessions.map((s) => {
+        const status = getLifecycleStatus(s)
+        return (
+          <button
+            key={s.id}
+            onClick={() => onSelect(s.id)}
+            className="flex w-full items-center justify-between rounded-2xl bg-[#1a1a1a] p-4 text-left hover:bg-[#242424] transition-colors"
+          >
+            <div>
+              <p className="text-sm font-semibold text-white">Clase {s.session_number}</p>
+              <p className="mt-0.5 text-xs text-white/50 capitalize">
+                {s.date ? formatDate(s.date) : 'Sin fecha'}{s.time ? ` · ${s.time.slice(0, 5)}` : ''}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <LiveStatusBadge status={status} />
+              <ChevronRight size={16} className="text-white/30" />
+            </div>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function LiveStatusBadge({ status }: { status: LifecycleStatus }) {
+  const map: Record<LifecycleStatus, { label: string; className: string }> = {
     not_started: { label: 'SIN COMENZAR', className: 'bg-white/10 text-white/60' },
     live: { label: '● EN VIVO', className: 'bg-emerald-500/20 text-emerald-400' },
     ended: { label: 'FINALIZADO', className: 'bg-white/10 text-white/40' },
@@ -161,7 +290,7 @@ function LiveStatusBadge({ status }: { status: EventStatus }) {
 }
 
 function LifecycleButton({ status, onStart, onEnd, onReopen }: {
-  status: EventStatus
+  status: LifecycleStatus
   onStart: () => void
   onEnd: () => void
   onReopen: () => void
@@ -187,7 +316,7 @@ function LifecycleButton({ status, onStart, onEnd, onReopen }: {
   )
 }
 
-function EventSummaryCard({ event }: { event?: Event }) {
+function EventSummaryCard({ event, session }: { event?: Event; session: EventSession | null }) {
   if (!event) {
     return (
       <div className="space-y-2 rounded-2xl bg-[#1a1a1a] p-5">
@@ -196,20 +325,23 @@ function EventSummaryCard({ event }: { event?: Event }) {
       </div>
     )
   }
+  const date = session?.date ?? event.date
+  const time = session?.time ?? event.time
+  const location = session?.location ?? event.location
   return (
     <div className="rounded-2xl bg-[#1a1a1a] p-5 text-sm text-white/70">
-      <p className="capitalize">{formatDate(event.date)} · {event.time?.slice(0, 5)}</p>
-      <p className="mt-1">{event.location}</p>
+      <p className="capitalize">{date ? formatDate(date) : 'Sin fecha'}{time ? ` · ${time.slice(0, 5)}` : ''}</p>
+      {location && <p className="mt-1">{location}</p>}
       <p className="mt-1">{event.available_spots}/{event.total_spots} cupos disponibles{event.price ? ` · ${formatPrice(event.price)}` : ''}</p>
     </div>
   )
 }
 
-function RosterPanel({ tickets, isLoading, isError, eventId, className = '' }: {
+function RosterPanel({ tickets, isLoading, isError, sessionId, className = '' }: {
   tickets: TicketWithPosition[]
   isLoading: boolean
   isError: boolean
-  eventId: string
+  sessionId: string
   className?: string
 }) {
   return (
@@ -221,11 +353,11 @@ function RosterPanel({ tickets, isLoading, isError, eventId, className = '' }: {
       ) : isError ? (
         <p className="p-8 text-center text-sm text-red-400">No se pudo cargar la lista de inscriptos.</p>
       ) : !tickets.length ? (
-        <p className="p-8 text-center text-sm text-white/50">Todavía no hay inscriptos para este evento.</p>
+        <p className="p-8 text-center text-sm text-white/50">Todavía no hay inscriptos para esta clase.</p>
       ) : (
         <div className="flex-1 overflow-y-auto">
           {tickets.map((t) => (
-            <RosterRow key={t.id} ticket={t} eventId={eventId} />
+            <RosterRow key={t.id} ticket={t} sessionId={sessionId} />
           ))}
         </div>
       )}
@@ -233,19 +365,21 @@ function RosterPanel({ tickets, isLoading, isError, eventId, className = '' }: {
   )
 }
 
-function RosterRow({ ticket, eventId }: { ticket: TicketWithPosition; eventId: string }) {
+function RosterRow({ ticket, sessionId }: { ticket: TicketWithPosition; sessionId: string }) {
   return (
     <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3 last:border-b-0">
       <div className="min-w-0 flex-1">
-        <p className="text-[11px] font-medium uppercase tracking-wide text-white/40">
-          Entrada {ticket.position}/{ticket.total}
-        </p>
+        {ticket.total > 1 && (
+          <p className="text-[11px] font-medium uppercase tracking-wide text-white/40">
+            Entrada {ticket.position}/{ticket.total}
+          </p>
+        )}
         {ticket.position === 1 ? (
           <p className="truncate text-sm text-white">
             {ticket.registrations?.name ?? '—'} <span className="text-white/50">· {ticket.registrations?.email ?? '—'}</span>
           </p>
         ) : (
-          <AttendeeEmailCell ticket={ticket} eventId={eventId} />
+          <AttendeeEmailCell ticket={ticket} sessionId={sessionId} />
         )}
       </div>
       <CheckInBadge validatedAt={ticket.validated_at} />
@@ -253,7 +387,7 @@ function RosterRow({ ticket, eventId }: { ticket: TicketWithPosition; eventId: s
   )
 }
 
-function AttendeeEmailCell({ ticket, eventId }: { ticket: TicketWithPosition; eventId: string }) {
+function AttendeeEmailCell({ ticket, sessionId }: { ticket: TicketWithPosition; sessionId: string }) {
   const qc = useQueryClient()
   const [value, setValue] = useState('')
   const [saving, setSaving] = useState(false)
@@ -267,7 +401,7 @@ function AttendeeEmailCell({ ticket, eventId }: { ticket: TicketWithPosition; ev
     setSaving(true)
     await supabase.from('tickets').update({ attendee_email: value.trim() }).eq('id', ticket.id)
     setSaving(false)
-    qc.invalidateQueries({ queryKey: ['event-tickets', eventId] })
+    qc.invalidateQueries({ queryKey: ['session-tickets', sessionId] })
   }
 
   return (
@@ -310,7 +444,7 @@ type ScanResult =
   | { status: 'invalid' }
   | null
 
-function TicketCameraPanel({ eventId, onValidated }: { eventId: string; onValidated: () => void }) {
+function TicketCameraPanel({ sessionId, onValidated }: { sessionId: string; onValidated: () => void }) {
   const { user } = useAuth()
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const [scanning, setScanning] = useState(false)
@@ -318,13 +452,13 @@ function TicketCameraPanel({ eventId, onValidated }: { eventId: string; onValida
   const [result, setResult] = useState<ScanResult>(null)
   const processingRef = useRef(false)
   const resultTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const eventIdRef = useRef(eventId)
+  const sessionIdRef = useRef(sessionId)
   const userIdRef = useRef(user?.id)
   const onValidatedRef = useRef(onValidated)
 
   useEffect(() => {
-    eventIdRef.current = eventId
-  }, [eventId])
+    sessionIdRef.current = sessionId
+  }, [sessionId])
 
   useEffect(() => {
     userIdRef.current = user?.id
@@ -373,11 +507,14 @@ function TicketCameraPanel({ eventId, onValidated }: { eventId: string; onValida
     processingRef.current = true
 
     try {
+      // Scoped by session_id, not just event_id — a curso ticket is only
+      // valid for the one class it was issued for. Scanning a class-3
+      // ticket during class-1's live window must not validate it.
       const { data: ticket, error } = await supabase
         .from('tickets')
         .select('*, registrations(name, email, spots)')
         .eq('token', token)
-        .eq('event_id', eventIdRef.current!)
+        .eq('session_id', sessionIdRef.current!)
         .maybeSingle()
 
       if (error || !ticket) {
@@ -417,11 +554,17 @@ function TicketCameraPanel({ eventId, onValidated }: { eventId: string; onValida
             name: reg?.name ?? '—',
           })
         } else {
+          // Same stable-tiebreaker reasoning as the roster query above —
+          // siblings created together in the same trigger loop share one
+          // created_at, so `id` as a secondary sort key keeps this index
+          // consistent with what the roster shows for the same ticket.
           const { data: siblings } = await supabase
             .from('tickets')
             .select('id, created_at')
             .eq('registration_id', ticket.registration_id)
+            .eq('session_id', sessionIdRef.current!)
             .order('created_at', { ascending: true })
+            .order('id', { ascending: true })
 
           const idx = (siblings ?? []).findIndex((s: { id: string }) => s.id === ticket.id)
 
@@ -516,7 +659,7 @@ function TicketCameraPanel({ eventId, onValidated }: { eventId: string; onValida
             <>
               <XCircle size={36} className="mx-auto text-white" />
               <p className="mt-2 text-lg font-bold text-white">QR INVÁLIDO</p>
-              <p className="mt-1 text-sm text-white/75">No corresponde a este evento</p>
+              <p className="mt-1 text-sm text-white/75">No corresponde a esta clase</p>
             </>
           )}
         </div>

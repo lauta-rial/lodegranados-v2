@@ -1,24 +1,30 @@
 import { test, expect, type Page } from '@playwright/test'
 import {
   insertRegistration,
-  insertTicket,
+  getTicketsForRegistration,
+  getFirstSessionId,
   getTicketByToken,
+  getTicketBySessionId,
   validateTicket,
   validateTicketIfUnvalidated,
   tryInsertTicketWithToken,
   deleteTicketAndRegistration,
+  deleteRegistration,
   resetEventLifecycle,
 } from './supabase-admin'
 
-// AdminScanner.tsx scans QR codes via a real device camera (html5-qrcode +
+// AdminEventLive.tsx scans QR codes via a real device camera (html5-qrcode +
 // getUserMedia) — there's no real camera or a rendered QR code to point it at
 // in a browser test environment, and faking one needs a synthetic video
 // device stream, which is a lot of fragility for what's actually being
 // tested here. Instead this exercises the validation RULE directly: the
-// exact reads/writes AdminScanner's onScan() does against `tickets`
-// (look up by token+event_id, reject if already validated_at, otherwise
-// stamp it). That's the part that actually matters — a ticket can only let
-// one person in.
+// exact reads/writes onScan() does against `tickets` (look up by
+// token+session_id, reject if already validated_at, otherwise stamp it).
+// That's the part that actually matters — a ticket can only let one person
+// in. insertRegistration() alone is enough to get a real ticket to test
+// against — a DB trigger auto-creates one per session as soon as the
+// registration row exists (see migration
+// per_session_tickets_and_session_lifecycle), same as a real purchase would.
 const PICHINCHA_ADMIN = { email: 'whatsapp.assistance.v1+pichinchaadmin@gmail.com', password: 'TestResend123!' }
 // A plain registered buyer, not an admin — used to prove the tickets RLS
 // policy actually rejects non-admin writes (see memory: this policy used to
@@ -81,7 +87,8 @@ test.describe('ticket scanning', () => {
 
   test('a ticket can only validate (mark attended) once', async ({}) => {
     const registrationId = await insertRegistration(EVENT_ID, 1)
-    const { token } = await insertTicket(EVENT_ID, registrationId)
+    const [ticket] = await getTicketsForRegistration(registrationId)
+    const token = ticket.token
 
     const beforeScan = await getTicketByToken(token, EVENT_ID)
     expect(beforeScan?.validated_at).toBeNull()
@@ -99,36 +106,41 @@ test.describe('ticket scanning', () => {
     await deleteTicketAndRegistration(afterFirstScan!.id, registrationId)
   })
 
-  test('scanning a token from a different event is rejected as invalid', async ({}) => {
+  test('scanning a token from a different session is rejected as invalid', async ({}) => {
     const registrationId = await insertRegistration(EVENT_ID, 1)
-    const { token, id } = await insertTicket(EVENT_ID, registrationId)
+    const [ticket] = await getTicketsForRegistration(registrationId)
 
-    // onScan() filters by token AND event_id — a valid token scanned against
-    // the wrong event's scanner page must not match.
+    // onScan() filters by token AND session_id (not just event_id) — this is
+    // what actually stops a class-3 ticket from validating during class-1's
+    // live window. Using two different catas' sessions here exercises the
+    // same guard (a cata's only ever has one session, so cross-event and
+    // cross-session are the same check for this case).
     const OTHER_EVENT_ID = '9d0428a4-f870-46cd-8e8c-fe9576f3862a' // Cata Vertical
-    const wrongEventLookup = await getTicketByToken(token, OTHER_EVENT_ID)
-    expect(wrongEventLookup).toBeNull()
+    const otherSessionId = await getFirstSessionId(OTHER_EVENT_ID)
+    const wrongSessionLookup = await getTicketBySessionId(ticket.token, otherSessionId)
+    expect(wrongSessionLookup).toBeNull()
 
-    await deleteTicketAndRegistration(id, registrationId)
+    await deleteTicketAndRegistration(ticket.id, registrationId)
   })
 
   test('ticket tokens must be unique — a duplicate token is rejected by the DB', async ({}) => {
     const registrationId = await insertRegistration(EVENT_ID, 1)
-    const { id: firstId, token } = await insertTicket(EVENT_ID, registrationId)
+    const [ticket] = await getTicketsForRegistration(registrationId)
 
     // tickets_token_key is a UNIQUE constraint — this must fail regardless of
     // anything the app does, since PostgREST inserts a real DB row.
-    const res = await tryInsertTicketWithToken(EVENT_ID, registrationId, token)
+    const res = await tryInsertTicketWithToken(EVENT_ID, registrationId, ticket.token)
     expect(res.ok).toBeFalsy()
     const body = await res.json()
     expect(body.code).toBe('23505') // Postgres unique_violation
 
-    await deleteTicketAndRegistration(firstId, registrationId)
+    await deleteTicketAndRegistration(ticket.id, registrationId)
   })
 
   test('a non-admin authenticated user cannot validate tickets via the API (RLS)', async ({ page }) => {
     const registrationId = await insertRegistration(EVENT_ID, 1)
-    const { id, token } = await insertTicket(EVENT_ID, registrationId)
+    const [ticket] = await getTicketsForRegistration(registrationId)
+    const { id, token } = ticket
 
     await loginRegularUser(page, REGULAR_USER)
     const accessToken = await getAccessToken(page)
@@ -161,7 +173,7 @@ test.describe('ticket scanning', () => {
 
   test('two simultaneous scans of the same ticket only validate it once', async ({}) => {
     const registrationId = await insertRegistration(EVENT_ID, 1)
-    const { id, token } = await insertTicket(EVENT_ID, registrationId)
+    const [{ id, token }] = await getTicketsForRegistration(registrationId)
 
     // Both calls race for the same row. Without the `validated_at IS NULL`
     // guard in the UPDATE, both could read/write "valid" — this is the
@@ -250,15 +262,12 @@ test.describe('companion attendee emails', () => {
   })
 
   test('door host can fill in a companion email on the live roster', async ({ page }) => {
+    // insertRegistration(EVENT_ID, 3) alone gets 3 tickets — a DB trigger
+    // auto-creates one per spot for the event's session, same as a real
+    // 3-spot purchase would. Deleting the registration cascades to all of
+    // them, so cleanup doesn't need to track individual ticket ids anymore.
     const registrationId = await insertRegistration(EVENT_ID, 3)
-    const t1 = await insertTicket(EVENT_ID, registrationId)
-    const t2 = await insertTicket(EVENT_ID, registrationId)
-    const t3 = await insertTicket(EVENT_ID, registrationId)
-    cleanup = async () => {
-      await deleteTicketAndRegistration(t1.id, registrationId)
-      await deleteTicketAndRegistration(t2.id, registrationId)
-      await deleteTicketAndRegistration(t3.id, registrationId)
-    }
+    cleanup = () => deleteRegistration(registrationId)
 
     await page.context().clearCookies()
     await page.goto('/admin')

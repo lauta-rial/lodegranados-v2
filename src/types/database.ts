@@ -158,7 +158,6 @@ export type Database = {
           created_at: string | null
           date: string
           description: string | null
-          ended_at: string | null
           id: string
           image_url: string | null
           instructor_bio: string | null
@@ -167,7 +166,6 @@ export type Database = {
           location: string | null
           price: number | null
           schedule: string | null
-          started_at: string | null
           syllabus: Json | null
           time: string | null
           title: string
@@ -182,7 +180,6 @@ export type Database = {
           created_at?: string | null
           date: string
           description?: string | null
-          ended_at?: string | null
           id?: string
           image_url?: string | null
           instructor_bio?: string | null
@@ -191,7 +188,6 @@ export type Database = {
           location?: string | null
           price?: number | null
           schedule?: string | null
-          started_at?: string | null
           syllabus?: Json | null
           time?: string | null
           title: string
@@ -206,7 +202,6 @@ export type Database = {
           created_at?: string | null
           date?: string
           description?: string | null
-          ended_at?: string | null
           id?: string
           image_url?: string | null
           instructor_bio?: string | null
@@ -215,7 +210,6 @@ export type Database = {
           location?: string | null
           price?: number | null
           schedule?: string | null
-          started_at?: string | null
           syllabus?: Json | null
           time?: string | null
           title?: string

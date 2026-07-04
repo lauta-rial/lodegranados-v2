@@ -252,9 +252,15 @@ Deno.serve(async (req) => {
 
     if (type === 'reservation') {
       // events absorbed courses (kind: 'cata'|'curso') and registrations
-      // absorbed enrollments — this branch now covers both. Cursos don't get
-      // tickets/QR yet (that's per-session ticketing, still to come); they
-      // get a plain confirmation email, same as 'enrollment' used to send.
+      // absorbed enrollments — this branch now covers both. Tickets are no
+      // longer inserted by hand: a DB trigger on `registrations` (AFTER
+      // INSERT) generates `spots` tickets per existing session automatically,
+      // in the same transaction as the insert — see migration
+      // per_session_tickets_and_session_lifecycle. Calling
+      // backfill_tickets_for_registration explicitly below is a no-op for a
+      // fresh insert (the trigger already did it) and is what actually
+      // creates the tickets for the "existing registration, retry" path,
+      // replacing the old manual insert-tickets-on-retry branch.
       const { data: eventRow } = await supabase
         .from('events')
         .select('title, date, time, location, branch_id, kind')
@@ -264,17 +270,20 @@ Deno.serve(async (req) => {
 
       let registrationId: string | null = null
 
-      // Idempotency check — but allow retry if a cata's tickets were never created
       if (paymentId) {
         const { data: existing } = await supabase
           .from('registrations')
-          .select('id')
+          .select('id, spots')
           .eq('event_id', ref)
           .eq('payment_id', paymentId)
           .maybeSingle()
         if (existing) {
           if (!isCata) {
-            // cursos have nothing further to generate — an existing row IS the completed state.
+            // cursos never attach ticket PDFs to the email — just make sure
+            // the tickets exist (safety net) and stop, same as before.
+            await supabase.rpc('backfill_tickets_for_registration', {
+              p_registration_id: existing.id, p_event_id: ref, p_spots: existing.spots ?? 1,
+            })
             return new Response(JSON.stringify({ ok: true, skipped: true }), {
               headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             })
@@ -283,12 +292,13 @@ Deno.serve(async (req) => {
             .from('tickets')
             .select('id', { count: 'exact', head: true })
             .eq('registration_id', existing.id)
-          if ((count ?? 0) > 0) {
+          if ((count ?? 0) >= (existing.spots ?? 1)) {
             return new Response(JSON.stringify({ ok: true, skipped: true }), {
               headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             })
           }
-          // Registration exists but no tickets — reuse it, skip re-inserting
+          // Registration exists but is short on tickets (partial failure on
+          // a previous attempt) — reuse it, top up tickets below.
           registrationId = existing.id
         }
       }
@@ -322,6 +332,9 @@ Deno.serve(async (req) => {
       const branchSlug = meta?.branchSlug ?? await resolveBranchSlug(eventRow?.branch_id)
 
       if (!isCata) {
+        await supabase.rpc('backfill_tickets_for_registration', {
+          p_registration_id: registrationId, p_event_id: ref, p_spots: 1,
+        })
         const html = emailBase(
           'Inscripción confirmada',
           `<p style="color:#3d2b1f;line-height:1.7">Hola <strong>${greetingName}</strong>,</p>
@@ -333,22 +346,18 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
 
-      const ticketRows = Array.from({ length: spots }, () => ({
-        registration_id: registrationId!,
-        event_id: ref,
-      }))
-      const { data: tickets, error: ticketErr } = await supabase
-        .from('tickets')
-        .insert(ticketRows)
-        .select('token')
+      const { error: ticketErr } = await supabase.rpc('backfill_tickets_for_registration', {
+        p_registration_id: registrationId, p_event_id: ref, p_spots: spots,
+      })
       if (ticketErr) {
-        console.error('DB insert error (tickets):', ticketErr.message)
+        console.error('Ticket backfill error:', ticketErr.message)
         return new Response(JSON.stringify({ error: 'Error al crear las entradas' }), {
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
       }
-      const tokensList = tickets.map((t: { token: string }) => t.token)
+      const { data: tickets } = await supabase.from('tickets').select('token').eq('registration_id', registrationId)
+      const tokensList = (tickets ?? []).map((t: { token: string }) => t.token)
 
       const attachments = await buildAllTicketPdfs(tokensList, eventTitle, dateTimeLabel, eventRow?.location ?? '')
 

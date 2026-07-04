@@ -137,23 +137,50 @@ export async function deleteLatestSubscription(planId: string): Promise<void> {
 }
 
 // --- Scanner test helpers ---
-// Mirrors the exact reads/writes AdminScanner.tsx's onScan() does against
+// Mirrors the exact reads/writes AdminEventLive.tsx's onScan() does against
 // `tickets`, so the single-use validation rule can be tested without a real
 // camera + rendered QR code (browser test environments have neither).
+//
+// Tickets are no longer inserted directly in tests (or in the app) — a DB
+// trigger on `registrations` auto-creates `spots` tickets per existing
+// session as soon as insertRegistration() runs (see migration
+// per_session_tickets_and_session_lifecycle), each correctly stamped with
+// session_id. Use getTicketsForRegistration() to read what the trigger
+// already made instead of inserting a redundant extra one by hand.
 
-export async function insertTicket(eventId: string, registrationId: string): Promise<{ id: string; token: string }> {
-  const res = await adminRequest('tickets', {
-    method: 'POST', prefer: 'return=representation',
-    body: { event_id: eventId, registration_id: registrationId },
-    action: 'insert ticket',
+export async function getTicketsForRegistration(registrationId: string): Promise<{ id: string; token: string }[]> {
+  const res = await adminRequest(`tickets?registration_id=eq.${registrationId}&select=id,token&order=created_at.asc`, {
+    action: 'read tickets for registration',
+  })
+  return res.json()
+}
+
+// A cata always has exactly one session (session_number=1), auto-created
+// and kept in sync with the event's own date/time/location — this resolves
+// its id for tests that need to assert session-scoped behavior.
+export async function getFirstSessionId(eventId: string): Promise<string> {
+  const res = await adminRequest(`event_sessions?event_id=eq.${eventId}&session_number=eq.1&select=id`, {
+    action: 'read first session id',
   })
   const [row] = await res.json()
-  return { id: row.id, token: row.token }
+  return row.id
 }
 
 export async function getTicketByToken(token: string, eventId: string): Promise<{ id: string; validated_at: string | null } | null> {
   const res = await adminRequest(`tickets?token=eq.${token}&event_id=eq.${eventId}&select=id,validated_at`, {
     action: 'read ticket',
+  })
+  const [row] = await res.json()
+  return row ?? null
+}
+
+// Mirrors onScan()'s actual lookup — token + session_id, not event_id. Used
+// to prove a ticket scanned against the wrong session doesn't match, the
+// real guard against a class-3 ticket validating during class-1's live
+// window (or, for catas, a ticket from a different event entirely).
+export async function getTicketBySessionId(token: string, sessionId: string): Promise<{ id: string; validated_at: string | null } | null> {
+  const res = await adminRequest(`tickets?token=eq.${token}&session_id=eq.${sessionId}&select=id,validated_at`, {
+    action: 'read ticket by session',
   })
   const [row] = await res.json()
   return row ?? null
@@ -204,16 +231,18 @@ export async function deleteTicketAndRegistration(ticketId: string, registration
   await adminRequest(`registrations?id=eq.${registrationId}`, { method: 'DELETE', action: 'delete registration' })
 }
 
-// The live-page lifecycle tests flip started_at/ended_at on a real,
-// permanent production event (EVENT_ID in scanner.spec.ts) instead of a
-// throwaway test row — this resets it back to "not started" regardless of
-// which lifecycle state a test left it in.
+// The live-page lifecycle tests flip started_at/ended_at on a session of a
+// real, permanent production event (EVENT_ID in scanner.spec.ts) instead of
+// a throwaway test row — this resets its first session back to "not
+// started" regardless of which lifecycle state a test left it in. A cata
+// only ever has one session (session_number=1), so this doesn't need to
+// know which session id that is.
 export async function resetEventLifecycle(eventId: string): Promise<void> {
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
     console.warn(`SUPABASE_SERVICE_ROLE_KEY not set — lifecycle for event ${eventId} was NOT reset.`)
     return
   }
-  await adminRequest(`events?id=eq.${eventId}`, {
+  await adminRequest(`event_sessions?event_id=eq.${eventId}&session_number=eq.1`, {
     method: 'PATCH', prefer: 'return=minimal', body: { started_at: null, ended_at: null }, action: 'reset event lifecycle',
   })
 }
