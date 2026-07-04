@@ -1,7 +1,12 @@
 // Public project URL + anon key — same values shipped in the client bundle
 // (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY), safe to hardcode here.
-const SUPABASE_URL = 'https://ccmjlbkvafkwyvehktxt.supabase.co'
-const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNjbWpsYmt2YWZrd3l2ZWhrdHh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4NzQxNjcsImV4cCI6MjA5NjQ1MDE2N30.Ruryu1G_Oaoo-NoMvByOrrKL8Cos6ppYupALdHHipYY'
+// Exported because scanner.spec.ts, admin-access-control.spec.ts, and
+// host-role.spec.ts had each already copy-pasted this same literal
+// independently — payment-security.spec.ts is the reason this finally got
+// pulled out instead of becoming a 4th copy. The other 3 aren't migrated to
+// the import in this pass (out of scope), just not making it worse.
+export const SUPABASE_URL = 'https://ccmjlbkvafkwyvehktxt.supabase.co'
+export const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNjbWpsYmt2YWZrd3l2ZWhrdHh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4NzQxNjcsImV4cCI6MjA5NjQ1MDE2N30.Ruryu1G_Oaoo-NoMvByOrrKL8Cos6ppYupALdHHipYY'
 
 function requireServiceRoleKey(): string {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -245,4 +250,54 @@ export async function resetEventLifecycle(eventId: string): Promise<void> {
   await adminRequest(`event_sessions?event_id=eq.${eventId}&session_number=eq.1`, {
     method: 'PATCH', prefer: 'return=minimal', body: { started_at: null, ended_at: null }, action: 'reset event lifecycle',
   })
+}
+
+// --- Payment security test helpers ---
+// Calls an edge function directly with a given API key — used to exercise
+// send-email/create-mp-preference as an attacker would (anon key only, no
+// real MercadoPago payment), independent of whatever a real UI checkout
+// would normally send.
+export async function callEdgeFunction(name: string, body: unknown, apiKey: string = ANON_KEY): Promise<Response> {
+  return fetch(`${SUPABASE_URL}/functions/v1/${name}`, {
+    method: 'POST',
+    headers: { apikey: apiKey, Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+// Same idea, for a SECURITY DEFINER function exposed via PostgREST RPC
+// (e.g. backfill_tickets_for_registration) — lets a test call it with a
+// specific role's key instead of whatever role the ambient client uses.
+export async function callRpc(name: string, body: unknown, apiKey: string = ANON_KEY): Promise<Response> {
+  return fetch(`${SUPABASE_URL}/rest/v1/rpc/${name}`, {
+    method: 'POST',
+    headers: { apikey: apiKey, Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+export async function getLatestPendingCheckout(ref: string): Promise<{ id: string; price: number; spots: number } | null> {
+  const res = await adminRequest(`pending_checkouts?ref=eq.${ref}&select=id,price,spots&order=created_at.desc&limit=1`, {
+    action: 'read latest pending_checkout',
+  })
+  const [row] = await res.json()
+  return row ?? null
+}
+
+export async function deletePendingCheckout(id: string): Promise<void> {
+  await adminRequest(`pending_checkouts?id=eq.${id}`, { method: 'DELETE', action: 'delete pending_checkout' })
+}
+
+export async function getEventPrice(eventId: string): Promise<number> {
+  const res = await anonRequest(`events?id=eq.${eventId}&select=price`, 'read event price')
+  const [row] = await res.json()
+  return row.price
+}
+
+export async function getRegistrationByEmail(eventId: string, email: string): Promise<{ id: string } | null> {
+  const res = await adminRequest(`registrations?event_id=eq.${eventId}&email=eq.${encodeURIComponent(email)}&select=id`, {
+    action: 'read registration by email',
+  })
+  const [row] = await res.json()
+  return row ?? null
 }

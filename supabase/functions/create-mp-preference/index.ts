@@ -31,9 +31,9 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { type, id, title, price, quantity = 1, userId, payerName, payerEmail, siteUrl } = await req.json()
+    const { type, id, title, quantity = 1, userId, payerName, payerEmail, siteUrl } = await req.json()
 
-    if (!type || !id || !title || price == null || !siteUrl) {
+    if (!type || !id || !title || !siteUrl) {
       return new Response(JSON.stringify({ error: 'Faltan parámetros requeridos' }), {
         status: 400,
         headers: { ...cors, 'Content-Type': 'application/json' },
@@ -48,7 +48,33 @@ Deno.serve(async (req) => {
       })
     }
 
-    const numPrice = Number(price)
+    const numQuantity = Number(quantity)
+    if (!Number.isInteger(numQuantity) || numQuantity < 1 || numQuantity > 20) {
+      return new Response(JSON.stringify({ error: 'Cantidad inválida' }), {
+        status: 400,
+        headers: { ...cors, 'Content-Type': 'application/json' },
+      })
+    }
+
+    // The price is looked up server-side from the real row, never trusted
+    // from the request body — a client used to be able to send any `price`
+    // it wanted here and MercadoPago would just charge that. `type` still
+    // distinguishes 'event'/'course' (both live in `events` now, kind is
+    // irrelevant for pricing) from 'plan' (Club DeVinos, in `plans`).
+    const priceTable = type === 'plan' ? 'plans' : 'events'
+    const { data: priceRow, error: priceErr } = await supabase
+      .from(priceTable)
+      .select('price')
+      .eq('id', id)
+      .maybeSingle()
+    if (priceErr || !priceRow || priceRow.price == null) {
+      return new Response(JSON.stringify({ error: 'No se encontró el producto a pagar' }), {
+        status: 404,
+        headers: { ...cors, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const numPrice = Number(priceRow.price)
     if (isNaN(numPrice) || numPrice <= 0) {
       return new Response(JSON.stringify({ error: 'El precio debe ser mayor a 0' }), {
         status: 400,
@@ -65,7 +91,7 @@ Deno.serve(async (req) => {
         user_id: userId ?? null,
         payer_name: payerName ?? null,
         payer_email: payerEmail ?? null,
-        spots: quantity,
+        spots: numQuantity,
         price: Math.round(numPrice),
       })
       .select('id')
@@ -86,7 +112,7 @@ Deno.serve(async (req) => {
       items: [
         {
           title,
-          quantity,
+          quantity: numQuantity,
           unit_price: numPrice,
           currency_id: 'ARS',
         },

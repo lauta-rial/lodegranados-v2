@@ -7,6 +7,7 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? ''
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') ?? ''
 const RESEND_FROM_EMAIL = Deno.env.get('RESEND_FROM_EMAIL') ?? 'Lo de Granados <noreply@lodegranados.com>'
+const MP_ACCESS_TOKEN = Deno.env.get('MP_ACCESS_TOKEN') ?? ''
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -52,6 +53,62 @@ async function resolveBranchSlug(branchId: string | null | undefined): Promise<s
   if (!branchId) return null
   const { data } = await supabase.from('branches').select('slug').eq('id', branchId).maybeSingle()
   return data?.slug ?? null
+}
+
+type VerifiedCheckout = {
+  ref: string
+  type: string
+  spots: number
+  price: number | null
+  payerName: string | null
+  payerEmail: string | null
+  userId: string | null
+}
+
+// This is the one gate that decides whether 'reservation'/'subscription'
+// actually get to write a registration/subscription + generate tickets.
+// Both callers of this function (mp-webhook, server-to-server; and
+// PagoExitoso.tsx, directly from the browser — this endpoint is
+// verify_jwt:false on purpose, so anyone with the public anon key can reach
+// it) used to be trusted to say "the payment was approved" themselves.
+// mp-webhook actually does verify against MercadoPago before calling this,
+// but PagoExitoso.tsx only checked a client-side `status` URL param, which
+// is fully attacker-controlled — no server ever confirmed a real payment
+// existed. Re-verifying here, independent of the caller, closes that gap
+// for good regardless of which path reaches this function. `ref`/`spots`/
+// `price` are read back from the DB row created at preference-creation
+// time (server-side, in create-mp-preference) rather than trusted from the
+// request body, so a caller can't claim a different (cheaper, or entirely
+// unpaid-for) event/spots count than what was actually paid.
+async function verifyApprovedPayment(paymentId: string | null | undefined): Promise<VerifiedCheckout | null> {
+  if (!paymentId || !MP_ACCESS_TOKEN) return null
+
+  const mpRes = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+    headers: { Authorization: `Bearer ${MP_ACCESS_TOKEN}` },
+  })
+  if (!mpRes.ok) {
+    console.error('verifyApprovedPayment: MP payment fetch failed', await mpRes.text())
+    return null
+  }
+  const payment = await mpRes.json()
+  if (payment.status !== 'approved' || !payment.external_reference) return null
+
+  const { data: pending } = await supabase
+    .from('pending_checkouts')
+    .select('*')
+    .eq('id', payment.external_reference)
+    .maybeSingle()
+  if (!pending) return null
+
+  return {
+    ref: pending.ref,
+    type: pending.type,
+    spots: pending.spots ?? 1,
+    price: pending.price ?? null,
+    payerName: pending.payer_name ?? null,
+    payerEmail: pending.payer_email ?? null,
+    userId: pending.user_id ?? null,
+  }
 }
 
 function formatEventDateTime(date: string | null, time: string | null): string {
@@ -292,6 +349,23 @@ Deno.serve(async (req) => {
       // fresh insert (the trigger already did it) and is what actually
       // creates the tickets for the "existing registration, retry" path,
       // replacing the old manual insert-tickets-on-retry branch.
+      //
+      // ref/spots below are read from the verified pending_checkouts row,
+      // never from the request body — see verifyApprovedPayment. Without
+      // this, anyone with the public anon key could call this endpoint
+      // directly (verify_jwt is false on purpose, for mp-webhook and
+      // PagoExitoso.tsx) and claim any ref/spots with no real payment at
+      // all — confirmed exploitable, not theoretical, before this fix.
+      const verified = await verifyApprovedPayment(paymentId)
+      if (!verified) {
+        return new Response(JSON.stringify({ error: 'No pudimos verificar el pago' }), {
+          status: 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+      const ref = verified.ref
+      const spots = Math.max(1, verified.spots)
+
       const { data: eventRow } = await supabase
         .from('events')
         .select('title, date, time, location, branch_id, kind')
@@ -409,6 +483,20 @@ Deno.serve(async (req) => {
     }
 
     if (type === 'subscription') {
+      // Same verification gate as 'reservation' above, same reason: this
+      // endpoint is reachable directly with just the public anon key, and
+      // must not activate a subscription without confirming a real
+      // approved payment first. `ref` (the plan id) comes from the
+      // verified pending_checkouts row, not the request body.
+      const verifiedSub = await verifyApprovedPayment(paymentId)
+      if (!verifiedSub) {
+        return new Response(JSON.stringify({ error: 'No pudimos verificar el pago' }), {
+          status: 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+      const ref = verifiedSub.ref
+
       // Idempotency by payment_id
       if (paymentId) {
         const { data: existing } = await supabase
@@ -429,7 +517,10 @@ Deno.serve(async (req) => {
         plan_id: ref,
         user_id: userId ?? null,
         branch_id: plan?.branch_id ?? null,
-        monthly_price: meta?.priceAmount ?? plan?.price ?? null,
+        // Always the DB's own price, never meta?.priceAmount — that came
+        // from the request body, which is exactly the value this whole
+        // verification gate exists to stop trusting.
+        monthly_price: plan?.price ?? null,
         start_date: new Date().toISOString().slice(0, 10),
         status: 'active',
         payment_id: paymentId ?? null,
