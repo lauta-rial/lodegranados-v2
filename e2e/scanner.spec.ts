@@ -30,8 +30,10 @@ const PICHINCHA_ADMIN = { email: 'whatsapp.assistance.v1+pichinchaadmin@gmail.co
 // policy actually rejects non-admin writes (see memory: this policy used to
 // be `auth.role() = 'authenticated'`, letting any logged-in user validate
 // or delete anyone's ticket; fixed to require app_metadata.role in
-// ['admin','superadmin'], same pattern as registrations/events).
-const REGULAR_USER = { email: 'whatsapp.assistance.v1+uitest2@gmail.com', password: 'TestResend123!' }
+// ['admin','superadmin'], same pattern as registrations/events). Same
+// account as CHECKOUT_TEST in purchase-helpers.ts — one persistent no-role
+// account covers every "just a regular buyer" test need across the suite.
+const REGULAR_USER = { email: 'whatsapp.assistance.v1+checkout@gmail.com', password: 'TestResend123!' }
 const EVENT_ID = '09e0bd67-0667-497d-a055-a0169817a207' // Cata de Malbec Mendocino
 
 // Public project URL + anon key — same values shipped in the client bundle,

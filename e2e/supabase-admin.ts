@@ -14,6 +14,34 @@ function requireServiceRoleKey(): string {
   return key
 }
 
+// GoTrue's admin "list users" endpoint doesn't support filtering by email
+// server-side the way this needs (confirmed: it 500s) — same underlying
+// issue as the listUsers() pagination bug find_user_by_email was built to
+// route around (see migration add_find_user_by_email_rpc, used by
+// manage-staff). Reused here for the same reason: it's a direct SQL lookup
+// against auth.users, service-role only. Used to clean up the disposable
+// account register-confirm-welcome.spec.ts creates every run (it has to
+// register a fresh one each time, unlike the purchase-*.spec.ts files,
+// which all share one persistent CHECKOUT_TEST account precisely to avoid
+// this kind of pileup — see purchase-helpers.ts).
+export async function deleteUserByEmail(email: string): Promise<void> {
+  const key = requireServiceRoleKey()
+  const rpcRes = await fetch(`${SUPABASE_URL}/rest/v1/rpc/find_user_by_email`, {
+    method: 'POST',
+    headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ p_email: email }),
+  })
+  if (!rpcRes.ok) throw new Error(`Failed to look up user by email: ${rpcRes.status} ${await rpcRes.text()}`)
+  const rows = await rpcRes.json()
+  const user = rows?.[0]
+  if (!user) return
+  const delRes = await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${user.id}`, {
+    method: 'DELETE',
+    headers: { apikey: key, Authorization: `Bearer ${key}` },
+  })
+  if (!delRes.ok) throw new Error(`Failed to delete user: ${delRes.status} ${await delRes.text()}`)
+}
+
 // Every REST helper below goes through this — one place for the
 // apikey/Authorization headers, the fetch call, and the error-on-non-ok
 // check, instead of each function repeating its own copy (which had already
