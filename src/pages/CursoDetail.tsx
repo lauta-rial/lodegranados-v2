@@ -63,7 +63,7 @@ export function CursoDetail() {
               <CalendarDays size={15} className="text-[var(--color-wine)]" />
               <div>
                 <p className="font-medium text-[var(--color-dark)]">Inicio</p>
-                <p className="capitalize">{formatDate(course.start_date)}</p>
+                <p className="capitalize">{formatDate(course.date)}</p>
               </div>
             </div>
             {course.schedule && (

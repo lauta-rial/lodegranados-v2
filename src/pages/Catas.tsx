@@ -77,7 +77,7 @@ function EventCard({ event, branchSlug }: { event: Event; branchSlug: string }) 
         <div className="mt-4 space-y-2">
           <div className="flex items-center gap-2 text-sm text-[var(--color-dark-muted)]">
             <CalendarDays size={14} className="text-[var(--color-wine)]" />
-            <span className="capitalize">{formatDate(event.date)} · {event.time.slice(0, 5)} hs</span>
+            <span className="capitalize">{formatDate(event.date)} · {event.time?.slice(0, 5)} hs</span>
           </div>
           <div className="flex items-center gap-2 text-sm text-[var(--color-dark-muted)]">
             <MapPin size={14} className="text-[var(--color-wine)]" />

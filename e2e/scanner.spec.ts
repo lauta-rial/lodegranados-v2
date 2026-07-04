@@ -282,6 +282,14 @@ test.describe('companion attendee emails', () => {
     await row2.locator('input[type="email"]').fill('companion2@example.com')
     await row2.getByRole('button', { name: 'Guardar' }).click()
 
+    // AttendeeEmailCell's save() is async but its onClick isn't awaited by
+    // React's event system — Playwright's `.click()` only waits for the
+    // click event to dispatch, not for the fetch it kicks off. Reloading
+    // immediately aborts that in-flight PATCH (net::ERR_ABORTED), so this
+    // must wait for the client-side re-render (row switches from input to
+    // plain text once attendee_email is set) before it's safe to reload.
+    await expect(row2.getByText('companion2@example.com')).toBeVisible()
+
     await page.reload()
     await expect(page.getByText('companion2@example.com')).toBeVisible()
     // Ticket 1/3 has no attendee_email of its own — it always shows the

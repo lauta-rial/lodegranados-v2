@@ -6,7 +6,7 @@ export function useEvents(branchId?: string) {
   return useQuery<Event[]>({
     queryKey: ['events', branchId],
     queryFn: async () => {
-      let q = supabase.from('events').select('*').eq('active', true)
+      let q = supabase.from('events').select('*').eq('active', true).eq('kind', 'cata')
       if (branchId) q = q.eq('branch_id', branchId)
       const { data, error } = await q.order('date', { ascending: true })
       if (error) throw error
@@ -23,6 +23,7 @@ export function useEvent(id: string) {
         .from('events')
         .select('*')
         .eq('id', id)
+        .eq('kind', 'cata')
         .single()
       if (error) throw error
       return data

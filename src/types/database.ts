@@ -161,11 +161,17 @@ export type Database = {
           ended_at: string | null
           id: string
           image_url: string | null
-          location: string
+          instructor_bio: string | null
+          instructor_name: string | null
+          kind: string
+          location: string | null
           price: number | null
+          schedule: string | null
           started_at: string | null
-          time: string
+          syllabus: Json | null
+          time: string | null
           title: string
+          total_classes: number | null
           total_spots: number
           updated_at: string | null
         }
@@ -179,11 +185,17 @@ export type Database = {
           ended_at?: string | null
           id?: string
           image_url?: string | null
-          location: string
+          instructor_bio?: string | null
+          instructor_name?: string | null
+          kind?: string
+          location?: string | null
           price?: number | null
+          schedule?: string | null
           started_at?: string | null
-          time: string
+          syllabus?: Json | null
+          time?: string | null
           title: string
+          total_classes?: number | null
           total_spots: number
           updated_at?: string | null
         }
@@ -197,15 +209,65 @@ export type Database = {
           ended_at?: string | null
           id?: string
           image_url?: string | null
-          location?: string
+          instructor_bio?: string | null
+          instructor_name?: string | null
+          kind?: string
+          location?: string | null
           price?: number | null
+          schedule?: string | null
           started_at?: string | null
-          time?: string
+          syllabus?: Json | null
+          time?: string | null
           title?: string
+          total_classes?: number | null
           total_spots?: number
           updated_at?: string | null
         }
         Relationships: []
+      }
+      event_sessions: {
+        Row: {
+          created_at: string | null
+          date: string | null
+          ended_at: string | null
+          event_id: string
+          id: string
+          location: string | null
+          session_number: number
+          started_at: string | null
+          time: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          date?: string | null
+          ended_at?: string | null
+          event_id: string
+          id?: string
+          location?: string | null
+          session_number: number
+          started_at?: string | null
+          time?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          date?: string | null
+          ended_at?: string | null
+          event_id?: string
+          id?: string
+          location?: string | null
+          session_number?: number
+          started_at?: string | null
+          time?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_sessions_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       inquiries: {
         Row: {
@@ -394,6 +456,7 @@ export type Database = {
           event_id: string
           id: string
           registration_id: string
+          session_id: string | null
           token: string
           validated_at: string | null
           validated_by: string | null
@@ -404,6 +467,7 @@ export type Database = {
           event_id: string
           id?: string
           registration_id: string
+          session_id?: string | null
           token?: string
           validated_at?: string | null
           validated_by?: string | null
@@ -414,6 +478,7 @@ export type Database = {
           event_id?: string
           id?: string
           registration_id?: string
+          session_id?: string | null
           token?: string
           validated_at?: string | null
           validated_by?: string | null
@@ -431,6 +496,13 @@ export type Database = {
             columns: ["registration_id"]
             isOneToOne: false
             referencedRelation: "registrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tickets_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "event_sessions"
             referencedColumns: ["id"]
           },
         ]
@@ -462,3 +534,4 @@ export type Enrollment = Database['public']['Tables']['enrollments']['Row']
 export type Inquiry = Database['public']['Tables']['inquiries']['Row']
 export type NewsletterRow = Database['public']['Tables']['newsletter']['Row']
 export type Ticket = Database['public']['Tables']['tickets']['Row']
+export type EventSession = Database['public']['Tables']['event_sessions']['Row']

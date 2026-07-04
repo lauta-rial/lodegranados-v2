@@ -178,7 +178,7 @@ export function BranchHome() {
                   {nextEvent.title}
                 </h2>
                 <p className="mt-3 text-[var(--color-dark-muted)] capitalize">
-                  {formatDate(nextEvent.date)} · {nextEvent.time.slice(0, 5)} hs
+                  {formatDate(nextEvent.date)} · {nextEvent.time?.slice(0, 5)} hs
                 </p>
                 <p className="text-[var(--color-dark-muted)]">{nextEvent.location}</p>
                 {nextEvent.price && (

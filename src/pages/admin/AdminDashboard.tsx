@@ -21,13 +21,17 @@ function useDashboard(branchId: string | null) {
       if (branchId) {
         // Branch admin: filter by branch. Registrations/enrollments via ID lists.
         const [eventsQ, coursesQ, subsQ, inquiriesQ] = await Promise.all([
-          supabase.from('events').select('*', { count: 'exact', head: true }).eq('active', true).eq('branch_id', branchId),
+          supabase.from('events').select('*', { count: 'exact', head: true }).eq('active', true).eq('branch_id', branchId).eq('kind', 'cata'),
           supabase.from('courses').select('*', { count: 'exact', head: true }).eq('active', true).eq('branch_id', branchId),
           supabase.from('subscriptions').select('*', { count: 'exact', head: true }).eq('status', 'active').eq('branch_id', branchId),
           supabase.from('inquiries').select('*', { count: 'exact', head: true }).eq('status', 'new').eq('branch_id', branchId),
         ])
+        // events now also holds kind='curso' rows (unified with the old
+        // `courses` table) — scope to catas here so the registrations count
+        // below (keyed on these ids) doesn't pick up curso event ids that
+        // registrations never actually references yet.
         const [eventsIds, coursesIds] = await Promise.all([
-          supabase.from('events').select('id').eq('branch_id', branchId),
+          supabase.from('events').select('id').eq('branch_id', branchId).eq('kind', 'cata'),
           supabase.from('courses').select('id').eq('branch_id', branchId),
         ])
         const eventIds = eventsIds.data?.map(e => e.id) ?? []
@@ -53,7 +57,7 @@ function useDashboard(branchId: string | null) {
       // Superadmin: global counts
       const [events, courses, subscriptions, inquiries, registrations, enrollments] =
         await Promise.all([
-          supabase.from('events').select('*', { count: 'exact', head: true }).eq('active', true),
+          supabase.from('events').select('*', { count: 'exact', head: true }).eq('active', true).eq('kind', 'cata'),
           supabase.from('courses').select('*', { count: 'exact', head: true }).eq('active', true),
           supabase.from('subscriptions').select('*', { count: 'exact', head: true }).eq('status', 'active'),
           supabase.from('inquiries').select('*', { count: 'exact', head: true }).eq('status', 'new'),

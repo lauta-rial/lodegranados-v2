@@ -67,7 +67,7 @@ export function CataDetail() {
           <div className="mt-6 space-y-3">
             <div className="flex items-center gap-3 text-[var(--color-dark-muted)]">
               <CalendarDays size={16} className="text-[var(--color-wine)]" />
-              <span className="capitalize">{formatDate(event.date)} · {event.time.slice(0, 5)} hs</span>
+              <span className="capitalize">{formatDate(event.date)} · {event.time?.slice(0, 5)} hs</span>
             </div>
             <div className="flex items-center gap-3 text-[var(--color-dark-muted)]">
               <MapPin size={16} className="text-[var(--color-wine)]" />

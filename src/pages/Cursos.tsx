@@ -5,7 +5,7 @@ import { useBranch } from '@/context/BranchContext'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { Badge } from '@/components/ui/Badge'
 import { formatDate, formatPrice } from '@/lib/utils'
-import type { Course } from '@/types/database'
+import type { Event } from '@/types/database'
 
 export function Cursos() {
   const branch = useBranch()
@@ -39,7 +39,7 @@ export function Cursos() {
   )
 }
 
-function CourseCard({ course, branchSlug }: { course: Course; branchSlug: string }) {
+function CourseCard({ course, branchSlug }: { course: Event; branchSlug: string }) {
   const soldOut = course.available_spots === 0
 
   return (
@@ -76,7 +76,7 @@ function CourseCard({ course, branchSlug }: { course: Course; branchSlug: string
           <div className="mt-4 space-y-1.5">
             <div className="flex items-center gap-2 text-sm text-[var(--color-dark-muted)]">
               <CalendarDays size={13} className="text-[var(--color-wine)]" />
-              <span className="capitalize">Inicio: {formatDate(course.start_date)}</span>
+              <span className="capitalize">Inicio: {formatDate(course.date)}</span>
             </div>
             {course.schedule && (
               <div className="flex items-center gap-2 text-sm text-[var(--color-dark-muted)]">
