@@ -219,6 +219,35 @@ export type Database = {
         }
         Relationships: []
       }
+      event_hosts: {
+        Row: {
+          created_at: string | null
+          event_id: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          event_id: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          event_id?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_hosts_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_sessions: {
         Row: {
           created_at: string | null
@@ -509,7 +538,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_event_hosts: {
+        Args: { p_event_id: string }
+        Returns: { id: string; user_id: string; email: string }[]
+      }
+      get_staff: {
+        Args: Record<PropertyKey, never>
+        Returns: { id: string; email: string; role: string; branch_id: string | null; created_at: string }[]
+      }
+      get_branch_hosts: {
+        Args: { p_branch_id: string }
+        Returns: { id: string; email: string }[]
+      }
     }
     Enums: {
       [_ in never]: never
@@ -532,3 +572,4 @@ export type Inquiry = Database['public']['Tables']['inquiries']['Row']
 export type NewsletterRow = Database['public']['Tables']['newsletter']['Row']
 export type Ticket = Database['public']['Tables']['tickets']['Row']
 export type EventSession = Database['public']['Tables']['event_sessions']['Row']
+export type EventHost = Database['public']['Tables']['event_hosts']['Row']

@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { Outlet, Navigate } from 'react-router-dom'
+import { Outlet, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { AdminProvider } from '@/context/AdminContext'
 import { Sidebar } from './Sidebar'
+import { HostHome } from './HostHome'
 import { supabase } from '@/lib/supabase'
 import { getUserRole, getUserBranchId } from '@/lib/adminRole'
 
@@ -67,6 +68,7 @@ function AdminLoginForm() {
 
 export function AdminLayout() {
   const { user, loading } = useAuth()
+  const location = useLocation()
 
   if (loading) return null
 
@@ -74,6 +76,20 @@ export function AdminLayout() {
 
   const role = getUserRole(user)
   if (!role) return <Navigate to="/" replace />
+
+  // A host has a branch_id (used only to decide which events they can be
+  // assigned to — see get_branch_hosts), but is never scoped like a branch
+  // admin: they don't get the full admin shell for their branch, only the
+  // specific events assigned to them via event_hosts. Must be checked
+  // before the branchId guard below so they don't fall into the branch-admin
+  // path. They can only ever reach their assigned event's live page —
+  // anything else (including /admin itself) shows their own event list
+  // instead of the full admin shell (Sidebar/AdminProvider assume
+  // branch-scoping, which doesn't apply here).
+  if (role === 'host') {
+    const onOwnLivePage = /^\/admin\/catas\/[^/]+\/live$/.test(location.pathname)
+    return onOwnLivePage ? <Outlet /> : <HostHome />
+  }
 
   const branchId = getUserBranchId(user)
   if (role === 'admin' && !branchId) {

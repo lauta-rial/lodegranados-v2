@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, Pencil, Trash2, QrCode, CalendarRange } from 'lucide-react'
+import { Plus, Pencil, Trash2, QrCode, CalendarRange, Users } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { Modal } from '@/components/admin/Modal'
 import { FormField, FormActions, fieldClass } from '@/components/admin/AdminFormField'
 import { ImageUpload } from '@/components/admin/ImageUpload'
 import { SessionsManager } from '@/components/admin/SessionsManager'
+import { EventHostsManager } from '@/components/admin/EventHostsManager'
 import { useAdmin } from '@/context/AdminContext'
 import { StatusBadge } from '@/pages/admin/AdminDashboard'
 import { Skeleton } from '@/components/ui/Skeleton'
@@ -27,6 +28,7 @@ export function EventsTab({ kind }: { kind: EventKind }) {
   const { branchId, isSuperAdmin } = useAdmin()
   const [modal, setModal] = useState<{ open: boolean; event?: Event }>({ open: false })
   const [sessionsModal, setSessionsModal] = useState<{ open: boolean; event?: Event }>({ open: false })
+  const [hostsModal, setHostsModal] = useState<{ open: boolean; event?: Event }>({ open: false })
   const noun = kind === 'cata' ? 'evento' : 'curso'
 
   const { data: events, isLoading } = useQuery<EventWithBranch[]>({
@@ -104,6 +106,9 @@ export function EventsTab({ kind }: { kind: EventKind }) {
                           <CalendarRange size={14} />
                         </button>
                       )}
+                      <button onClick={() => setHostsModal({ open: true, event: ev })} className="rounded p-1 text-[var(--color-muted)] hover:text-[var(--color-wine)] transition-colors" title="Hosts">
+                        <Users size={14} />
+                      </button>
                       <button onClick={() => setModal({ open: true, event: ev })} className="rounded p-1 text-[var(--color-muted)] hover:text-[var(--color-dark)] transition-colors">
                         <Pencil size={14} />
                       </button>
@@ -140,6 +145,14 @@ export function EventsTab({ kind }: { kind: EventKind }) {
           open={sessionsModal.open}
           event={sessionsModal.event}
           onClose={() => setSessionsModal({ open: false })}
+        />
+      )}
+
+      {hostsModal.event && (
+        <EventHostsManager
+          open={hostsModal.open}
+          event={hostsModal.event}
+          onClose={() => setHostsModal({ open: false })}
         />
       )}
     </>

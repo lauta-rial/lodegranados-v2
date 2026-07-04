@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, CalendarDays, BookOpen, Users, MessageSquare, MapPin, Mail, LogOut } from 'lucide-react'
+import { LayoutDashboard, CalendarDays, BookOpen, Users, MessageSquare, MapPin, Mail, UserCog, LogOut } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/AuthContext'
 import { useAdmin } from '@/context/AdminContext'
@@ -12,6 +12,7 @@ const allLinks = [
   { to: '/admin/consultas', icon: MessageSquare, label: 'Consultas', end: false, superAdminOnly: false },
   { to: '/admin/sucursales', icon: MapPin, label: 'Sucursales', end: false, superAdminOnly: true },
   { to: '/admin/newsletter', icon: Mail, label: 'Newsletter', end: false, superAdminOnly: true },
+  { to: '/admin/staff', icon: UserCog, label: 'Staff', end: false, superAdminOnly: true },
 ]
 
 export function Sidebar() {

@@ -5,11 +5,11 @@ import type { User } from '@supabase/supabase-js'
 // queries) used to each re-derive this inline. If the metadata shape ever
 // changes (e.g. app_metadata.role -> app_metadata.roles[]), there's now one
 // place to update instead of two that can silently drift apart.
-export type AdminRole = 'admin' | 'superadmin' | null
+export type AdminRole = 'admin' | 'superadmin' | 'host' | null
 
 export function getUserRole(user: User | null | undefined): AdminRole {
   const role = user?.app_metadata?.role ?? user?.user_metadata?.role ?? null
-  return role === 'admin' || role === 'superadmin' ? role : null
+  return role === 'admin' || role === 'superadmin' || role === 'host' ? role : null
 }
 
 export function getUserBranchId(user: User | null | undefined): string | null {

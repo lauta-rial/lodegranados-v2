@@ -250,6 +250,37 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
+    // Staff (admin/host) accounts are created by manage-staff (service role,
+    // auth.admin.inviteUserByEmail) — that call already triggers Supabase's
+    // own "confirm your account" email. This is the *second*, separate
+    // welcome mail the admin asked for, explaining what the role means.
+    if (type === 'staff_welcome') {
+      const role = meta?.role === 'admin' ? 'administrador/a' : 'host'
+      const html = emailBase(
+        '¡Bienvenido/a al equipo!',
+        `<p style="color:#3d2b1f;line-height:1.7">Hola,</p>
+         <p style="color:#3d2b1f;line-height:1.7">Te dimos de alta como <strong>${role}</strong> en el panel de Lo de Granados. Ya recibiste (o vas a recibir en un instante) un mail separado para confirmar tu cuenta y elegir una contraseña — una vez que la confirmes, vas a poder ingresar al panel.</p>`,
+        siteUrl,
+        'Ir al panel',
+      )
+      await sendEmail(to, 'Bienvenido/a al equipo de Lo de Granados', html)
+      return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+
+    // Fired by assign-host every time an admin assigns a host to a specific
+    // event — the host needs to know without having to check the panel.
+    if (type === 'staff_event_assigned') {
+      const html = emailBase(
+        'Te asignaron un evento',
+        `<p style="color:#3d2b1f;line-height:1.7">Hola,</p>
+         <p style="color:#3d2b1f;line-height:1.7">Te asignaron como host de <strong>${meta?.eventTitle ?? ''}</strong>${meta?.eventDate ? ` (${meta.eventDate})` : ''}. Vas a poder escanear las entradas desde el panel el día del evento.</p>`,
+        `${siteUrl}/admin`,
+        'Ir al panel',
+      )
+      await sendEmail(to, `Te asignaron a "${meta?.eventTitle ?? 'un evento'}"`, html)
+      return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+
     if (type === 'reservation') {
       // events absorbed courses (kind: 'cata'|'curso') and registrations
       // absorbed enrollments — this branch now covers both. Tickets are no
