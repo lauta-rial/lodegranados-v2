@@ -7,7 +7,7 @@ import { formatPrice } from '@/lib/utils'
 
 const emailType: Record<string, string> = {
   event: 'reservation',
-  course: 'enrollment',
+  course: 'reservation',
   plan: 'subscription',
 }
 

@@ -98,11 +98,11 @@ Deno.serve(async (req) => {
       return new Response('ok', { status: 200 })
     }
 
-    const emailType = pending.type === 'event'
-      ? 'reservation'
-      : pending.type === 'course'
-      ? 'enrollment'
-      : 'subscription'
+    // 'event' and 'course' both land on 'reservation' now — registrations
+    // absorbed enrollments, and events absorbed courses (kind: 'cata'|'curso'),
+    // so send-email's reservation branch handles both by looking at the
+    // event's own kind instead of the caller's purchase type.
+    const emailType = pending.type === 'plan' ? 'subscription' : 'reservation'
 
     const emailRes = await fetch(`${SUPABASE_URL}/functions/v1/send-email`, {
       method: 'POST',

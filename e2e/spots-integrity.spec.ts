@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import {
   getAvailableSpots, insertRegistration, deleteRegistration,
-  getCourseSpots, insertEnrollment, deleteEnrollment,
+  getCourseSpots, insertEnrollment, deleteEnrollment, updateRegistrationStatus,
 } from './supabase-admin'
 
 // No browser needed — these hit the DB directly to verify the self-healing
@@ -38,10 +38,31 @@ test.describe('available_spots self-healing triggers', () => {
     expect(await getAvailableSpots(CATA_VERTICAL_EVENT_ID)).toBe(controlBaseline)
   })
 
-  test('course: insert/delete enrollments recalculates available_spots', async () => {
+  test('course: insert/delete enrollments (registrations) recalculates available_spots', async () => {
     const baseline = await getCourseSpots(SOMMELIER_COURSE_ID)
 
     const enrollmentId = await insertEnrollment(SOMMELIER_COURSE_ID)
+    expect(await getCourseSpots(SOMMELIER_COURSE_ID)).toBe(baseline - 1)
+
+    await deleteEnrollment(enrollmentId)
+    expect(await getCourseSpots(SOMMELIER_COURSE_ID)).toBe(baseline)
+  })
+
+  // Phase 2 regression coverage: recalculate_event_spots was rewritten to
+  // exclude status='dropped' registrations (previously only enrollments had
+  // this "dropped frees the spot" behavior, via a separate function/trigger
+  // that no longer exists — a naive table merge would have silently dropped
+  // this guarantee, permanently locking the seat).
+  test('course: a dropped enrollment frees its spot, a completed one does not', async () => {
+    const baseline = await getCourseSpots(SOMMELIER_COURSE_ID)
+
+    const enrollmentId = await insertEnrollment(SOMMELIER_COURSE_ID)
+    expect(await getCourseSpots(SOMMELIER_COURSE_ID)).toBe(baseline - 1)
+
+    await updateRegistrationStatus(enrollmentId, 'dropped')
+    expect(await getCourseSpots(SOMMELIER_COURSE_ID)).toBe(baseline)
+
+    await updateRegistrationStatus(enrollmentId, 'completed')
     expect(await getCourseSpots(SOMMELIER_COURSE_ID)).toBe(baseline - 1)
 
     await deleteEnrollment(enrollmentId)

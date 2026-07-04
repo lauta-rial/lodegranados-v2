@@ -242,20 +242,24 @@ function ReservationsSection({ userId }: { userId: string }) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('registrations')
-        .select('*, events(title, date, time, location, branch_id), tickets(token, validated_at)')
+        .select('*, events(title, date, time, location, branch_id, kind), tickets(token, validated_at)')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
       if (error) throw error
+      // registrations now also holds curso enrollments (kind='curso') — those
+      // are shown separately below, in "Mis cursos".
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return (data ?? []).map((r: any) => ({
-        ...r,
-        event_title: r.events?.title ?? '—',
-        event_date: r.events?.date,
-        event_time: r.events?.time,
-        event_location: r.events?.location,
-        event_branch_id: r.events?.branch_id,
-        tickets: (r.tickets ?? []) as { token: string; validated_at: string | null }[],
-      }))
+      return (data ?? [])
+        .filter((r: any) => r.events?.kind !== 'curso')
+        .map((r: any) => ({
+          ...r,
+          event_title: r.events?.title ?? '—',
+          event_date: r.events?.date,
+          event_time: r.events?.time,
+          event_location: r.events?.location,
+          event_branch_id: r.events?.branch_id,
+          tickets: (r.tickets ?? []) as { token: string; validated_at: string | null }[],
+        }))
     },
   })
 
@@ -347,20 +351,25 @@ function EnrollmentsSection({ userId }: { userId: string }) {
   const { data, isLoading, isError } = useQuery({
     queryKey: ['my-enrollments', userId],
     queryFn: async () => {
+      // registrations absorbed enrollments — a curso enrollment is a
+      // registrations row whose event has kind='curso'.
       const { data, error } = await supabase
-        .from('enrollments')
-        .select('*, courses(title, start_date, instructor_name, branch_id)')
+        .from('registrations')
+        .select('*, events(title, date, instructor_name, branch_id, kind)')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
       if (error) throw error
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return (data ?? []).map((e: any) => ({
-        ...e,
-        course_title: e.courses?.title ?? '—',
-        course_date: e.courses?.start_date,
-        instructor: e.courses?.instructor_name,
-        course_branch_id: e.courses?.branch_id,
-      }))
+      return (data ?? [])
+        .filter((r: any) => r.events?.kind === 'curso')
+        .map((r: any) => ({
+          ...r,
+          course_id: r.event_id,
+          course_title: r.events?.title ?? '—',
+          course_date: r.events?.date,
+          instructor: r.events?.instructor_name,
+          course_branch_id: r.events?.branch_id,
+        }))
     },
   })
 

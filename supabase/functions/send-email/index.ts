@@ -251,9 +251,20 @@ Deno.serve(async (req) => {
     }
 
     if (type === 'reservation') {
+      // events absorbed courses (kind: 'cata'|'curso') and registrations
+      // absorbed enrollments — this branch now covers both. Cursos don't get
+      // tickets/QR yet (that's per-session ticketing, still to come); they
+      // get a plain confirmation email, same as 'enrollment' used to send.
+      const { data: eventRow } = await supabase
+        .from('events')
+        .select('title, date, time, location, branch_id, kind')
+        .eq('id', ref)
+        .maybeSingle()
+      const isCata = eventRow?.kind !== 'curso'
+
       let registrationId: string | null = null
 
-      // Idempotency check — but allow retry if tickets were never created
+      // Idempotency check — but allow retry if a cata's tickets were never created
       if (paymentId) {
         const { data: existing } = await supabase
           .from('registrations')
@@ -262,6 +273,12 @@ Deno.serve(async (req) => {
           .eq('payment_id', paymentId)
           .maybeSingle()
         if (existing) {
+          if (!isCata) {
+            // cursos have nothing further to generate — an existing row IS the completed state.
+            return new Response(JSON.stringify({ ok: true, skipped: true }), {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            })
+          }
           const { count } = await supabase
             .from('tickets')
             .select('id', { count: 'exact', head: true })
@@ -286,7 +303,8 @@ Deno.serve(async (req) => {
           name: payerName ?? name ?? null,
           email: payerEmail ?? to ?? null,
           payment_id: paymentId ?? null,
-          spots,
+          spots: isCata ? spots : 1,
+          status: isCata ? null : 'enrolled',
         }).select('id').single()
 
         if (dbErr || !reg?.id) {
@@ -297,6 +315,22 @@ Deno.serve(async (req) => {
           })
         }
         registrationId = reg.id
+      }
+
+      const dateTimeLabel = formatEventDateTime(eventRow?.date ?? null, eventRow?.time ?? null)
+      const eventTitle = meta?.title ?? eventRow?.title ?? 'Lo de Granados'
+      const branchSlug = meta?.branchSlug ?? await resolveBranchSlug(eventRow?.branch_id)
+
+      if (!isCata) {
+        const html = emailBase(
+          'Inscripción confirmada',
+          `<p style="color:#3d2b1f;line-height:1.7">Hola <strong>${greetingName}</strong>,</p>
+           <p style="color:#3d2b1f;line-height:1.7">Tu inscripción al curso <strong>${eventTitle}</strong>${meta?.price ? ` por <strong>${meta.price}</strong>` : ''} fue confirmada. Te contactaremos con más detalles.</p>`,
+          branchUrl(siteUrl, branchSlug, 'cursos'),
+          'Ver cursos',
+        )
+        await sendEmail(payerEmail ?? to, 'Tu inscripción está confirmada — Lo de Granados', html)
+        return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
 
       const ticketRows = Array.from({ length: spots }, () => ({
@@ -316,16 +350,6 @@ Deno.serve(async (req) => {
       }
       const tokensList = tickets.map((t: { token: string }) => t.token)
 
-      const { data: eventRow } = await supabase
-        .from('events')
-        .select('title, date, time, location, branch_id')
-        .eq('id', ref)
-        .maybeSingle()
-
-      const dateTimeLabel = formatEventDateTime(eventRow?.date ?? null, eventRow?.time ?? null)
-      const eventTitle = meta?.title ?? eventRow?.title ?? 'Lo de Granados'
-      const branchSlug = meta?.branchSlug ?? await resolveBranchSlug(eventRow?.branch_id)
-
       const attachments = await buildAllTicketPdfs(tokensList, eventTitle, dateTimeLabel, eventRow?.location ?? '')
 
       const spotsLabel = spots > 1 ? ` (${spots} entradas)` : ''
@@ -342,58 +366,6 @@ Deno.serve(async (req) => {
         'Ver catas',
       )
       await sendEmail(payerEmail ?? to, 'Tu reserva está confirmada — Lo de Granados', html, attachments)
-    }
-
-    if (type === 'enrollment') {
-      if (paymentId) {
-        const { data: existing } = await supabase
-          .from('enrollments')
-          .select('id')
-          .eq('course_id', ref)
-          .eq('payment_id', paymentId)
-          .maybeSingle()
-        if (existing) {
-          return new Response(JSON.stringify({ ok: true, skipped: true }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          })
-        }
-      }
-
-      // available_spots is derived by a DB trigger from this table's rows
-      // (see migration add_total_spots_and_self_healing_course_spots) —
-      // inserting here is what updates the count, no separate decrement call needed.
-      const { error: dbErr } = await supabase.from('enrollments').insert({
-        course_id: ref,
-        user_id: userId ?? null,
-        name: payerName ?? name ?? null,
-        email: payerEmail ?? to ?? null,
-        payment_id: paymentId ?? null,
-        status: 'enrolled',
-      })
-      if (dbErr) {
-        console.error('DB insert error (enrollments):', dbErr.message)
-        return new Response(JSON.stringify({ error: 'Error al registrar la inscripción' }), {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
-      }
-
-      const { data: courseRow } = await supabase
-        .from('courses')
-        .select('title, branch_id')
-        .eq('id', ref)
-        .maybeSingle()
-      const courseTitle = meta?.title ?? courseRow?.title ?? ''
-      const branchSlug = meta?.branchSlug ?? await resolveBranchSlug(courseRow?.branch_id)
-
-      const html = emailBase(
-        'Inscripción confirmada',
-        `<p style="color:#3d2b1f;line-height:1.7">Hola <strong>${greetingName}</strong>,</p>
-         <p style="color:#3d2b1f;line-height:1.7">Tu inscripción al curso <strong>${courseTitle}</strong>${meta?.price ? ` por <strong>${meta.price}</strong>` : ''} fue confirmada. Te contactaremos con más detalles.</p>`,
-        branchUrl(siteUrl, branchSlug, 'cursos'),
-        'Ver cursos',
-      )
-      await sendEmail(payerEmail ?? to, 'Tu inscripción está confirmada — Lo de Granados', html)
     }
 
     if (type === 'subscription') {

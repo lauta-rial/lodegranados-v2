@@ -83,16 +83,18 @@ export async function deleteRegistration(id: string): Promise<void> {
   await adminRequest(`registrations?id=eq.${id}`, { method: 'DELETE', action: 'delete registration' })
 }
 
+// Cursos are events with kind='curso' now (registrations absorbed
+// enrollments, events absorbed courses) — this is the same table/column
+// getAvailableSpots reads, kept as a distinctly-named alias since callers
+// read more clearly as "course spots" at their call sites.
 export async function getCourseSpots(courseId: string): Promise<number> {
-  const res = await anonRequest(`courses?id=eq.${courseId}&select=available_spots`, 'read course available_spots')
-  const [row] = await res.json()
-  return row.available_spots
+  return getAvailableSpots(courseId)
 }
 
 export async function insertEnrollment(courseId: string): Promise<string> {
-  const res = await adminRequest('enrollments', {
+  const res = await adminRequest('registrations', {
     method: 'POST', prefer: 'return=representation',
-    body: { course_id: courseId, status: 'enrolled', email: 'e2e-spots-integrity@example.com' },
+    body: { event_id: courseId, spots: 1, status: 'enrolled', email: 'e2e-spots-integrity@example.com' },
     action: 'insert enrollment',
   })
   const [row] = await res.json()
@@ -100,15 +102,25 @@ export async function insertEnrollment(courseId: string): Promise<string> {
 }
 
 export async function deleteEnrollment(id: string): Promise<void> {
-  await adminRequest(`enrollments?id=eq.${id}`, { method: 'DELETE', action: 'delete enrollment' })
+  await adminRequest(`registrations?id=eq.${id}`, { method: 'DELETE', action: 'delete enrollment' })
 }
 
 // Cleanup after a real (sandbox) purchase flow — deletes by course/email
 // instead of by id since the id is generated server-side by the edge
 // function, not returned to the test.
 export async function deleteEnrollmentsByEmail(courseId: string, email: string): Promise<void> {
-  await adminRequest(`enrollments?course_id=eq.${courseId}&email=eq.${encodeURIComponent(email)}`, {
+  await adminRequest(`registrations?event_id=eq.${courseId}&email=eq.${encodeURIComponent(email)}`, {
     method: 'DELETE', action: 'delete enrollments by email',
+  })
+}
+
+// Regression coverage for the recalculate_event_spots rewrite (Phase 2): a
+// registration with status='dropped' must NOT count against available_spots
+// — mirrors what recalculate_course_spots used to guarantee for enrollments
+// before it was retired in favor of one unified function.
+export async function updateRegistrationStatus(id: string, status: string): Promise<void> {
+  await adminRequest(`registrations?id=eq.${id}`, {
+    method: 'PATCH', prefer: 'return=minimal', body: { status }, action: 'update registration status',
   })
 }
 

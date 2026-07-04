@@ -18,30 +18,29 @@ function useDashboard(branchId: string | null) {
   return useQuery<Counts>({
     queryKey: ['admin-dashboard', branchId],
     queryFn: async () => {
+      // events holds both kinds now (unified with the old `courses` table) —
+      // courses/enrollments are frozen leftovers from before that migration
+      // and no longer receive new rows, so every count here comes from
+      // events/registrations, scoped by kind.
       if (branchId) {
-        // Branch admin: filter by branch. Registrations/enrollments via ID lists.
         const [eventsQ, coursesQ, subsQ, inquiriesQ] = await Promise.all([
           supabase.from('events').select('*', { count: 'exact', head: true }).eq('active', true).eq('branch_id', branchId).eq('kind', 'cata'),
-          supabase.from('courses').select('*', { count: 'exact', head: true }).eq('active', true).eq('branch_id', branchId),
+          supabase.from('events').select('*', { count: 'exact', head: true }).eq('active', true).eq('branch_id', branchId).eq('kind', 'curso'),
           supabase.from('subscriptions').select('*', { count: 'exact', head: true }).eq('status', 'active').eq('branch_id', branchId),
           supabase.from('inquiries').select('*', { count: 'exact', head: true }).eq('status', 'new').eq('branch_id', branchId),
         ])
-        // events now also holds kind='curso' rows (unified with the old
-        // `courses` table) — scope to catas here so the registrations count
-        // below (keyed on these ids) doesn't pick up curso event ids that
-        // registrations never actually references yet.
-        const [eventsIds, coursesIds] = await Promise.all([
+        const [cataIds, cursoIds] = await Promise.all([
           supabase.from('events').select('id').eq('branch_id', branchId).eq('kind', 'cata'),
-          supabase.from('courses').select('id').eq('branch_id', branchId),
+          supabase.from('events').select('id').eq('branch_id', branchId).eq('kind', 'curso'),
         ])
-        const eventIds = eventsIds.data?.map(e => e.id) ?? []
-        const courseIds = coursesIds.data?.map(c => c.id) ?? []
+        const eventIds = cataIds.data?.map(e => e.id) ?? []
+        const courseIds = cursoIds.data?.map(e => e.id) ?? []
         const [regQ, enrQ] = await Promise.all([
           eventIds.length > 0
             ? supabase.from('registrations').select('*', { count: 'exact', head: true }).in('event_id', eventIds)
             : Promise.resolve({ count: 0 }),
           courseIds.length > 0
-            ? supabase.from('enrollments').select('*', { count: 'exact', head: true }).in('course_id', courseIds).eq('status', 'enrolled')
+            ? supabase.from('registrations').select('*', { count: 'exact', head: true }).in('event_id', courseIds).eq('status', 'enrolled')
             : Promise.resolve({ count: 0 }),
         ])
         return {
@@ -55,15 +54,27 @@ function useDashboard(branchId: string | null) {
       }
 
       // Superadmin: global counts
-      const [events, courses, subscriptions, inquiries, registrations, enrollments] =
+      const [events, courses, subscriptions, inquiries] =
         await Promise.all([
           supabase.from('events').select('*', { count: 'exact', head: true }).eq('active', true).eq('kind', 'cata'),
-          supabase.from('courses').select('*', { count: 'exact', head: true }).eq('active', true),
+          supabase.from('events').select('*', { count: 'exact', head: true }).eq('active', true).eq('kind', 'curso'),
           supabase.from('subscriptions').select('*', { count: 'exact', head: true }).eq('status', 'active'),
           supabase.from('inquiries').select('*', { count: 'exact', head: true }).eq('status', 'new'),
-          supabase.from('registrations').select('*', { count: 'exact', head: true }),
-          supabase.from('enrollments').select('*', { count: 'exact', head: true }).eq('status', 'enrolled'),
         ])
+      const [cataIds, cursoIds] = await Promise.all([
+        supabase.from('events').select('id').eq('kind', 'cata'),
+        supabase.from('events').select('id').eq('kind', 'curso'),
+      ])
+      const eventIds = cataIds.data?.map(e => e.id) ?? []
+      const courseIds = cursoIds.data?.map(e => e.id) ?? []
+      const [registrations, enrollments] = await Promise.all([
+        eventIds.length > 0
+          ? supabase.from('registrations').select('*', { count: 'exact', head: true }).in('event_id', eventIds)
+          : Promise.resolve({ count: 0 }),
+        courseIds.length > 0
+          ? supabase.from('registrations').select('*', { count: 'exact', head: true }).in('event_id', courseIds).eq('status', 'enrolled')
+          : Promise.resolve({ count: 0 }),
+      ])
       return {
         events: events.count ?? 0,
         courses: courses.count ?? 0,
