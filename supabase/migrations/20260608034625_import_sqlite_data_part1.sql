@@ -1,0 +1,33 @@
+BEGIN;
+SET session_replication_role = replica;
+
+INSERT INTO public.branch (id, name, slug, address, phone, "createdAt", city, "zipCode", instagram) OVERRIDING SYSTEM VALUE VALUES (8, 'Forum', 'forum', 'Av. Cándido Carballo 216', '341 5325112', '2026-06-03 02:27:10', 'Rosario', NULL, NULL);
+INSERT INTO public.branch (id, name, slug, address, phone, "createdAt", city, "zipCode", instagram) OVERRIDING SYSTEM VALUE VALUES (9, 'Fisherton', 'fisherton', 'Eva Perón 7706', '3413731136', '2026-06-03 02:27:10', 'Rosario', NULL, NULL);
+INSERT INTO public.branch (id, name, slug, address, phone, "createdAt", city, "zipCode", instagram) OVERRIDING SYSTEM VALUE VALUES (10, 'Wilde', 'wilde', 'Wilde 428', '341 2537558', '2026-06-03 02:27:10', 'Rosario', NULL, NULL);
+INSERT INTO public.branch (id, name, slug, address, phone, "createdAt", city, "zipCode", instagram) OVERRIDING SYSTEM VALUE VALUES (11, 'Aldea', 'aldea', 'Av. Real 9612', '341 3076741', '2026-06-03 02:27:10', 'Rosario', NULL, NULL);
+INSERT INTO public.branch (id, name, slug, address, phone, "createdAt", city, "zipCode", instagram) OVERRIDING SYSTEM VALUE VALUES (12, 'División Empresas', 'wilde-empresas', 'Wilde 428', '341 3714947', '2026-06-03 02:27:10', 'Rosario', NULL, NULL);
+INSERT INTO public.branch (id, name, slug, address, phone, "createdAt", city, "zipCode", instagram) OVERRIDING SYSTEM VALUE VALUES (13, 'Mercado del Patio', 'mercado-del-patio', 'Local 3 y 4', '341 3626405', '2026-06-03 02:27:10', 'Rosario', NULL, '@odegranado');
+INSERT INTO public.branch (id, name, slug, address, phone, "createdAt", city, "zipCode", instagram) OVERRIDING SYSTEM VALUE VALUES (14, 'Pichincha', 'pichincha', 'Rodríguez 129', '341 747 8993', '2026-06-03 02:27:10', 'Rosario', NULL, '@pichincha.lodegranado');
+INSERT INTO public.branch (id, name, slug, address, phone, "createdAt", city, "zipCode", instagram) OVERRIDING SYSTEM VALUE VALUES (15, 'Barrio Echesortu', 'barrio-echesortu', 'Mendoza 3748', '+54 9 3412 53-7835', '2026-06-03 02:27:10', 'Rosario', NULL, '@echesortu.lodegranado');
+INSERT INTO public.branch (id, name, slug, address, phone, "createdAt", city, "zipCode", instagram) OVERRIDING SYSTEM VALUE VALUES (16, 'Centro 9 de Julio', 'centro-9-de-julio', '9 de Julio 972', '341 6402391', '2026-06-03 02:27:10', 'Rosario', NULL, '@lodegranado.centro');
+INSERT INTO public.branch (id, name, slug, address, phone, "createdAt", city, "zipCode", instagram) OVERRIDING SYSTEM VALUE VALUES (17, 'Centro Tucumán', 'centro-tucuman', 'Tucumán 1462', '341 5006096', '2026-06-03 02:27:10', 'Rosario', NULL, NULL);
+INSERT INTO public.branch (id, name, slug, address, phone, "createdAt", city, "zipCode", instagram) OVERRIDING SYSTEM VALUE VALUES (18, 'Ricardone', 'ricardone', 'A012 y Ángel Bevilacua', '341 6065733', '2026-06-03 02:27:10', 'Ricardone', NULL, '@lodegranado.ricardone');
+INSERT INTO public.branch (id, name, slug, address, phone, "createdAt", city, "zipCode", instagram) OVERRIDING SYSTEM VALUE VALUES (19, 'Roldán', 'roldan', 'Av. de las Libertades 1750, Tierra de Sueño 2', '341 3028206', '2026-06-03 02:27:10', 'Roldán', NULL, 'lodegranado.roldan');
+INSERT INTO public.branch (id, name, slug, address, phone, "createdAt", city, "zipCode", instagram) OVERRIDING SYSTEM VALUE VALUES (20, 'Fighiera', 'fighiera', 'Tienda Online', NULL, '2026-06-03 02:27:10', 'Fighiera', NULL, NULL);
+INSERT INTO public.branch (id, name, slug, address, phone, "createdAt", city, "zipCode", instagram) OVERRIDING SYSTEM VALUE VALUES (21, 'Funes', 'funes', 'Mitre 884, Local 3', '341 6001192', '2026-06-03 02:27:10', 'Funes', NULL, 'lodegranado.funes');
+INSERT INTO public.branch (id, name, slug, address, phone, "createdAt", city, "zipCode", instagram) OVERRIDING SYSTEM VALUE VALUES (22, 'Acebal', 'acebal', 'San Martín 564', NULL, '2026-06-03 02:27:10', 'Acebal', NULL, NULL);
+INSERT INTO public.branch (id, name, slug, address, phone, "createdAt", city, "zipCode", instagram) OVERRIDING SYSTEM VALUE VALUES (23, 'San Cristóbal', 'san-cristobal', 'Caseros 1505', NULL, '2026-06-03 02:27:10', 'San Cristóbal', NULL, 'lodegranado.sancristobal');
+INSERT INTO public.branch (id, name, slug, address, phone, "createdAt", city, "zipCode", instagram) OVERRIDING SYSTEM VALUE VALUES (24, 'Rufino', 'rufino', 'Cobo 243', NULL, '2026-06-03 02:27:10', 'Rufino', NULL, NULL);
+INSERT INTO public.branch (id, name, slug, address, phone, "createdAt", city, "zipCode", instagram) OVERRIDING SYSTEM VALUE VALUES (25, 'Cañada de Gómez', 'canada-de-gomez', 'San Martín y Ocampo', '3471 580568', '2026-06-03 02:27:10', 'Cañada de Gómez', NULL, '@lodegranado.canada');
+INSERT INTO public.branch (id, name, slug, address, phone, "createdAt", city, "zipCode", instagram) OVERRIDING SYSTEM VALUE VALUES (26, 'Pérez', 'perez', 'Belgrano 1857', '341 3109551', '2026-06-03 02:27:10', 'Pérez', NULL, '@lodegranado.perez');
+INSERT INTO public.branch (id, name, slug, address, phone, "createdAt", city, "zipCode", instagram) OVERRIDING SYSTEM VALUE VALUES (27, 'Paraná', 'parana', 'Tienda Online', NULL, '2026-06-03 02:27:10', 'Paraná', NULL, '@lodegranado.parana');
+INSERT INTO public.branch (id, name, slug, address, phone, "createdAt", city, "zipCode", instagram) OVERRIDING SYSTEM VALUE VALUES (28, 'Isla Verde', 'isla-verde', 'Libertad 631', NULL, '2026-06-03 02:27:10', 'Isla Verde', NULL, '@loddegranado.islaverde');
+
+INSERT INTO public.plan (id, name, emoji, price, features, highlighted, badge, "imageUrl") OVERRIDING SYSTEM VALUE VALUES (2, 'Exclusivo', '🍇', 15000, '["4 botellas mensuales", "Descuento en eventos"]'::jsonb, true, 'Más elegido', NULL);
+INSERT INTO public.plan (id, name, emoji, price, features, highlighted, badge, "imageUrl") OVERRIDING SYSTEM VALUE VALUES (3, 'Gran Reserva', '👑', 25000, '["6 botellas mensuales", "Cata privada", "Acceso VIP a eventos"]'::jsonb, false, '', NULL);
+
+INSERT INTO public."user" (id, email, password, "googleId", name, "createdAt", role) OVERRIDING SYSTEM VALUE VALUES (15, 'riallautaro@gmail.com', '$2b$10$opZHrIG.ZipVmkVKTXAIEuZg5Yxm8yFsmRWM9TREc6OJFntfVfuuK', '117795406525718970595', 'Lautaro Rial', '2026-06-01 02:20:50', 'member');
+INSERT INTO public."user" (id, email, password, "googleId", name, "createdAt", role) OVERRIDING SYSTEM VALUE VALUES (17, 'test@test.com', '$2b$10$cKWAMHVX/6ZHvk9cPfSh1OKKseNFP.n6sp9arJARPOaAIT238txWi', NULL, 'Test', '2026-06-07 05:09:09', 'member');
+INSERT INTO public."user" (id, email, password, "googleId", name, "createdAt", role) OVERRIDING SYSTEM VALUE VALUES (18, 'whatsapp.assistance.v1@gmail.com', '$2b$10$KC2S77z4qXyAJnTuMgZ2CuFsfoyQQDOU1RIs2OoKqX.SFCk2QvF26', NULL, 'WhatsApp Assistant', '2026-06-07 05:28:56', 'member');
+
+COMMIT;

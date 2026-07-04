@@ -42,5 +42,5 @@ create trigger on_registrations_change_recalc_spots
   for each row
   execute function public.trg_recalculate_event_spots();
 
--- Bring every existing event in line at the time this migration runs.
+-- Bring every existing event in line right now.
 select public.recalculate_event_spots(id) from events;

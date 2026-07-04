@@ -4,14 +4,13 @@
 -- doesn't change, then apply the same self-healing trigger pattern used for
 -- events (see migration self_healing_event_available_spots).
 
-alter table public.courses add column if not exists total_spots integer;
+alter table public.courses add column total_spots integer;
 
 update public.courses c
 set total_spots = c.available_spots + (
   select count(*) from public.enrollments e
   where e.course_id = c.id and e.status = 'enrolled'
-)
-where c.total_spots is null;
+);
 
 alter table public.courses alter column total_spots set not null;
 alter table public.courses alter column total_spots set default 0;
@@ -55,5 +54,5 @@ create trigger on_enrollments_change_recalc_spots
   for each row
   execute function public.trg_recalculate_course_spots();
 
--- Bring every existing course in line at the time this migration runs.
+-- Bring every existing course in line right now.
 select public.recalculate_course_spots(id) from courses;

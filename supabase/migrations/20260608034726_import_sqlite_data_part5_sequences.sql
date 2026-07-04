@@ -1,0 +1,14 @@
+SELECT setval(pg_get_serial_sequence('public.branch', 'id'), COALESCE((SELECT MAX(id) FROM public.branch), 1), true);
+SELECT setval(pg_get_serial_sequence('public.plan', 'id'), COALESCE((SELECT MAX(id) FROM public.plan), 1), true);
+SELECT setval(pg_get_serial_sequence('public."user"', 'id'), COALESCE((SELECT MAX(id) FROM public."user"), 1), true);
+SELECT setval(pg_get_serial_sequence('public.user_branches', 'id'), COALESCE((SELECT MAX(id) FROM public.user_branches), 1), true);
+SELECT setval(pg_get_serial_sequence('public.branch_plans', 'id'), COALESCE((SELECT MAX(id) FROM public.branch_plans), 1), true);
+SELECT setval(pg_get_serial_sequence('public.event', 'id'), COALESCE((SELECT MAX(id) FROM public.event), 1), true);
+SELECT setval(pg_get_serial_sequence('public.course', 'id'), COALESCE((SELECT MAX(id) FROM public.course), 1), true);
+SELECT setval(pg_get_serial_sequence('public.event_registration', 'id'), COALESCE((SELECT MAX(id) FROM public.event_registration), 1), true);
+SELECT setval(pg_get_serial_sequence('public.course_enrollment', 'id'), COALESCE((SELECT MAX(id) FROM public.course_enrollment), 1), true);
+SELECT setval(pg_get_serial_sequence('public.subscription', 'id'), COALESCE((SELECT MAX(id) FROM public.subscription), 1), true);
+SELECT setval(pg_get_serial_sequence('public.inquiry', 'id'), COALESCE((SELECT MAX(id) FROM public.inquiry), 1), true);
+SELECT setval(pg_get_serial_sequence('public.newsletter', 'id'), COALESCE((SELECT MAX(id) FROM public.newsletter), 1), true);
+SELECT setval(pg_get_serial_sequence('public.password_reset', 'id'), COALESCE((SELECT MAX(id) FROM public.password_reset), 1), true);
+SELECT setval(pg_get_serial_sequence('public.payment', 'id'), COALESCE((SELECT MAX(id) FROM public.payment), 1), true);
