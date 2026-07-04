@@ -117,7 +117,7 @@ function EventsTab() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-2">
-                      <Link to={`/admin/scanner/${ev.id}`} className="rounded p-1 text-[var(--color-muted)] hover:text-[var(--color-wine)] transition-colors" title="Escanear entradas">
+                      <Link to={`/admin/catas/${ev.id}/live`} className="rounded p-1 text-[var(--color-muted)] hover:text-[var(--color-wine)] transition-colors" title="Ver en vivo">
                         <QrCode size={14} />
                       </Link>
                       <button onClick={() => setModal({ open: true, event: ev })} className="rounded p-1 text-[var(--color-muted)] hover:text-[var(--color-dark)] transition-colors">

@@ -34,7 +34,7 @@ const AdminClub = lazy(() => import('@/pages/admin/AdminClub').then(m => ({ defa
 const AdminConsultas = lazy(() => import('@/pages/admin/AdminConsultas').then(m => ({ default: m.AdminConsultas })))
 const AdminSucursales = lazy(() => import('@/pages/admin/AdminSucursales').then(m => ({ default: m.AdminSucursales })))
 const AdminNewsletter = lazy(() => import('@/pages/admin/AdminNewsletter').then(m => ({ default: m.AdminNewsletter })))
-const AdminScanner = lazy(() => import('@/pages/admin/AdminScanner').then(m => ({ default: m.AdminScanner })))
+const AdminEventLive = lazy(() => import('@/pages/admin/AdminEventLive').then(m => ({ default: m.AdminEventLive })))
 
 export default function App() {
   return (
@@ -77,7 +77,7 @@ export default function App() {
             <Route path="consultas" element={<Suspense><AdminConsultas /></Suspense>} />
             <Route path="sucursales" element={<SuperAdminRoute><Suspense><AdminSucursales /></Suspense></SuperAdminRoute>} />
             <Route path="newsletter" element={<SuperAdminRoute><Suspense><AdminNewsletter /></Suspense></SuperAdminRoute>} />
-            <Route path="scanner/:eventId" element={<Suspense><AdminScanner /></Suspense>} />
+            <Route path="catas/:eventId/live" element={<Suspense><AdminEventLive /></Suspense>} />
           </Route>
         </Routes>
       </AuthProvider>

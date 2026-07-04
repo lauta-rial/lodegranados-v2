@@ -155,7 +155,53 @@ export async function validateTicket(token: string): Promise<void> {
   })
 }
 
+// Mirrors AdminScanner.tsx's onScan() including the `validated_at IS NULL`
+// guard that closes the two-scanners-same-ticket race: the UPDATE only
+// matches a row if nobody validated it in between. Empty array means "lost
+// the race" (or it was already validated) — never throws on that, since it's
+// an expected outcome for one side of a concurrent scan, not a failure.
+export async function validateTicketIfUnvalidated(token: string): Promise<{ id: string }[]> {
+  const res = await adminRequest(`tickets?token=eq.${token}&validated_at=is.null`, {
+    method: 'PATCH', prefer: 'return=representation',
+    body: { validated_at: new Date().toISOString() },
+    action: 'conditionally validate ticket',
+  })
+  return res.json()
+}
+
+// Inserts a ticket with an explicit token instead of letting the DB default
+// (gen_random_uuid()) generate one. Returns the raw Response instead of
+// throwing on a non-2xx — used to prove tickets_token_key (UNIQUE) rejects a
+// collision, where the 409 *is* the expected outcome being asserted on.
+export async function tryInsertTicketWithToken(eventId: string, registrationId: string, token: string): Promise<Response> {
+  const serviceRoleKey = requireServiceRoleKey()
+  return fetch(`${SUPABASE_URL}/rest/v1/tickets`, {
+    method: 'POST',
+    headers: {
+      apikey: serviceRoleKey,
+      Authorization: `Bearer ${serviceRoleKey}`,
+      'Content-Type': 'application/json',
+      Prefer: 'return=representation',
+    },
+    body: JSON.stringify({ event_id: eventId, registration_id: registrationId, token }),
+  })
+}
+
 export async function deleteTicketAndRegistration(ticketId: string, registrationId: string): Promise<void> {
   await adminRequest(`tickets?id=eq.${ticketId}`, { method: 'DELETE', action: 'delete ticket' })
   await adminRequest(`registrations?id=eq.${registrationId}`, { method: 'DELETE', action: 'delete registration' })
+}
+
+// The live-page lifecycle tests flip started_at/ended_at on a real,
+// permanent production event (EVENT_ID in scanner.spec.ts) instead of a
+// throwaway test row — this resets it back to "not started" regardless of
+// which lifecycle state a test left it in.
+export async function resetEventLifecycle(eventId: string): Promise<void> {
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.warn(`SUPABASE_SERVICE_ROLE_KEY not set — lifecycle for event ${eventId} was NOT reset.`)
+    return
+  }
+  await adminRequest(`events?id=eq.${eventId}`, {
+    method: 'PATCH', prefer: 'return=minimal', body: { started_at: null, ended_at: null }, action: 'reset event lifecycle',
+  })
 }

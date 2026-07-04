@@ -158,10 +158,12 @@ export type Database = {
           created_at: string | null
           date: string
           description: string | null
+          ended_at: string | null
           id: string
           image_url: string | null
           location: string
           price: number | null
+          started_at: string | null
           time: string
           title: string
           total_spots: number
@@ -174,10 +176,12 @@ export type Database = {
           created_at?: string | null
           date: string
           description?: string | null
+          ended_at?: string | null
           id?: string
           image_url?: string | null
           location: string
           price?: number | null
+          started_at?: string | null
           time: string
           title: string
           total_spots: number
@@ -190,10 +194,12 @@ export type Database = {
           created_at?: string | null
           date?: string
           description?: string | null
+          ended_at?: string | null
           id?: string
           image_url?: string | null
           location?: string
           price?: number | null
+          started_at?: string | null
           time?: string
           title?: string
           total_spots?: number
@@ -383,6 +389,7 @@ export type Database = {
       }
       tickets: {
         Row: {
+          attendee_email: string | null
           created_at: string | null
           event_id: string
           id: string
@@ -392,6 +399,7 @@ export type Database = {
           validated_by: string | null
         }
         Insert: {
+          attendee_email?: string | null
           created_at?: string | null
           event_id: string
           id?: string
@@ -401,6 +409,7 @@ export type Database = {
           validated_by?: string | null
         }
         Update: {
+          attendee_email?: string | null
           created_at?: string | null
           event_id?: string
           id?: string
