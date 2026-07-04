@@ -21,19 +21,29 @@ test.describe('available_spots self-healing triggers', () => {
     const baseline = await getAvailableSpots(MALBEC_EVENT_ID)
     const controlBaseline = await getAvailableSpots(CATA_VERTICAL_EVENT_ID)
 
-    const regA = await insertRegistration(MALBEC_EVENT_ID, 2)
-    expect(await getAvailableSpots(MALBEC_EVENT_ID)).toBe(baseline - 2)
+    // try/finally so a failed assertion mid-test still cleans up its rows —
+    // this test hits a real, shared event (MALBEC_EVENT_ID is also used by
+    // scanner.spec.ts/host-role.spec.ts fixtures), and a previous run that
+    // threw here used to leave dangling registrations behind permanently,
+    // which then corrupted every subsequent run's baseline (confirmed: found
+    // 2 leftover e2e-spots-integrity@example.com rows from earlier failed
+    // runs during this session's audit pass).
+    let regA: string | undefined
+    let regB: string | undefined
+    try {
+      regA = await insertRegistration(MALBEC_EVENT_ID, 2)
+      expect(await getAvailableSpots(MALBEC_EVENT_ID)).toBe(baseline - 2)
 
-    const regB = await insertRegistration(MALBEC_EVENT_ID, 1)
-    expect(await getAvailableSpots(MALBEC_EVENT_ID)).toBe(baseline - 3)
+      regB = await insertRegistration(MALBEC_EVENT_ID, 1)
+      expect(await getAvailableSpots(MALBEC_EVENT_ID)).toBe(baseline - 3)
 
-    // A completely unrelated event must not move.
-    expect(await getAvailableSpots(CATA_VERTICAL_EVENT_ID)).toBe(controlBaseline)
+      // A completely unrelated event must not move.
+      expect(await getAvailableSpots(CATA_VERTICAL_EVENT_ID)).toBe(controlBaseline)
+    } finally {
+      if (regA) await deleteRegistration(regA)
+      if (regB) await deleteRegistration(regB)
+    }
 
-    await deleteRegistration(regA)
-    expect(await getAvailableSpots(MALBEC_EVENT_ID)).toBe(baseline - 1)
-
-    await deleteRegistration(regB)
     expect(await getAvailableSpots(MALBEC_EVENT_ID)).toBe(baseline)
     expect(await getAvailableSpots(CATA_VERTICAL_EVENT_ID)).toBe(controlBaseline)
   })
@@ -41,10 +51,14 @@ test.describe('available_spots self-healing triggers', () => {
   test('course: insert/delete enrollments (registrations) recalculates available_spots', async () => {
     const baseline = await getCourseSpots(SOMMELIER_COURSE_ID)
 
-    const enrollmentId = await insertEnrollment(SOMMELIER_COURSE_ID)
-    expect(await getCourseSpots(SOMMELIER_COURSE_ID)).toBe(baseline - 1)
+    let enrollmentId: string | undefined
+    try {
+      enrollmentId = await insertEnrollment(SOMMELIER_COURSE_ID)
+      expect(await getCourseSpots(SOMMELIER_COURSE_ID)).toBe(baseline - 1)
+    } finally {
+      if (enrollmentId) await deleteEnrollment(enrollmentId)
+    }
 
-    await deleteEnrollment(enrollmentId)
     expect(await getCourseSpots(SOMMELIER_COURSE_ID)).toBe(baseline)
   })
 
@@ -56,16 +70,20 @@ test.describe('available_spots self-healing triggers', () => {
   test('course: a dropped enrollment frees its spot, a completed one does not', async () => {
     const baseline = await getCourseSpots(SOMMELIER_COURSE_ID)
 
-    const enrollmentId = await insertEnrollment(SOMMELIER_COURSE_ID)
-    expect(await getCourseSpots(SOMMELIER_COURSE_ID)).toBe(baseline - 1)
+    let enrollmentId: string | undefined
+    try {
+      enrollmentId = await insertEnrollment(SOMMELIER_COURSE_ID)
+      expect(await getCourseSpots(SOMMELIER_COURSE_ID)).toBe(baseline - 1)
 
-    await updateRegistrationStatus(enrollmentId, 'dropped')
-    expect(await getCourseSpots(SOMMELIER_COURSE_ID)).toBe(baseline)
+      await updateRegistrationStatus(enrollmentId, 'dropped')
+      expect(await getCourseSpots(SOMMELIER_COURSE_ID)).toBe(baseline)
 
-    await updateRegistrationStatus(enrollmentId, 'completed')
-    expect(await getCourseSpots(SOMMELIER_COURSE_ID)).toBe(baseline - 1)
+      await updateRegistrationStatus(enrollmentId, 'completed')
+      expect(await getCourseSpots(SOMMELIER_COURSE_ID)).toBe(baseline - 1)
+    } finally {
+      if (enrollmentId) await deleteEnrollment(enrollmentId)
+    }
 
-    await deleteEnrollment(enrollmentId)
     expect(await getCourseSpots(SOMMELIER_COURSE_ID)).toBe(baseline)
   })
 })

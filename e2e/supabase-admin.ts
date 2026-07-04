@@ -199,7 +199,7 @@ export async function validateTicket(token: string): Promise<void> {
   })
 }
 
-// Mirrors AdminScanner.tsx's onScan() including the `validated_at IS NULL`
+// Mirrors AdminEventLive.tsx's onScan() including the `validated_at IS NULL`
 // guard that closes the two-scanners-same-ticket race: the UPDATE only
 // matches a row if nobody validated it in between. Empty array means "lost
 // the race" (or it was already validated) — never throws on that, since it's

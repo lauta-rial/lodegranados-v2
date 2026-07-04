@@ -145,7 +145,7 @@ test.describe('ticket scanning', () => {
     await loginRegularUser(page, REGULAR_USER)
     const accessToken = await getAccessToken(page)
 
-    // Same request shape AdminScanner.tsx's onScan() makes, but with a plain
+    // Same request shape AdminEventLive.tsx's onScan() makes, but with a plain
     // buyer's session instead of an admin's — "admins can manage tickets"
     // used to be `auth.role() = 'authenticated'`, which any logged-in user
     // satisfies. Now it requires app_metadata.role in ['admin','superadmin'].

@@ -34,3 +34,6 @@ TEST_CARD.txt
 # Playwright e2e
 /playwright-report/
 /test-results/
+
+# Supabase CLI local cache
+supabase/.temp/
