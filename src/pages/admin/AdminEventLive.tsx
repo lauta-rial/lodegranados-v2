@@ -353,7 +353,17 @@ function TicketCameraPanel({ eventId, onValidated }: { eventId: string; onValida
     })
 
     return () => {
-      qr.stop().catch(() => {})
+      // .stop() throws synchronously (not just a rejected promise) when the
+      // camera never actually started — e.g. no device/permission, which is
+      // the normal case in headless test environments. Uncaught, this
+      // crashes the unmount and breaks the rest of the page (the live→ended
+      // transition unmounts this panel while the parent needs to keep
+      // rendering "FINALIZADO").
+      try {
+        qr.stop().catch(() => {})
+      } catch {
+        // nothing to stop
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

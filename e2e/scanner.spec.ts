@@ -210,9 +210,17 @@ test.describe('event live lifecycle', () => {
     await expect(page.getByText('SIN COMENZAR')).toBeVisible()
     await expect(page.locator('#qr-reader')).toHaveCount(0)
 
+    // No real camera in CI/test envs (Playwright's default chromium has no
+    // fake video device) — TicketCameraPanel renders either the live
+    // #qr-reader or a permission/device error message depending on what
+    // getUserMedia does, and either is fine here: the point of this
+    // assertion is that the camera panel mounted at all once "live", same
+    // rationale as the original scanner page-load test above.
+    const cameraPanelMounted = page.locator('#qr-reader').or(page.getByText(/cámara/i))
+
     await page.getByRole('button', { name: 'Iniciar evento' }).click()
     await expect(page.getByText('EN VIVO')).toBeVisible()
-    await expect(page.locator('#qr-reader')).toBeVisible()
+    await expect(cameraPanelMounted).toBeVisible()
 
     page.once('dialog', (dialog) => dialog.accept())
     await page.getByRole('button', { name: 'Finalizar evento' }).click()
@@ -221,18 +229,36 @@ test.describe('event live lifecycle', () => {
 
     await page.getByRole('button', { name: 'Reabrir evento' }).click()
     await expect(page.getByText('EN VIVO')).toBeVisible()
-    await expect(page.locator('#qr-reader')).toBeVisible()
+    await expect(cameraPanelMounted).toBeVisible()
   })
 })
 
 test.describe('companion attendee emails', () => {
   test.skip(!process.env.SUPABASE_SERVICE_ROLE_KEY, 'requires SUPABASE_SERVICE_ROLE_KEY')
 
+  // Like the lifecycle tests above, this inserts rows into a real,
+  // permanent production event's roster (not a throwaway one). Cleanup runs
+  // in afterEach — not at the end of the test body — so a failed assertion
+  // mid-test doesn't leave orphaned registrations/tickets behind (this
+  // happened for real earlier: a failing assertion here left 5 stray
+  // registrations with 12 tickets in the live "Cata de Malbec Mendocino"
+  // event, cleaned up by hand via SQL).
+  let cleanup: (() => Promise<void>) | null = null
+  test.afterEach(async () => {
+    if (cleanup) await cleanup()
+    cleanup = null
+  })
+
   test('door host can fill in a companion email on the live roster', async ({ page }) => {
     const registrationId = await insertRegistration(EVENT_ID, 3)
     const t1 = await insertTicket(EVENT_ID, registrationId)
     const t2 = await insertTicket(EVENT_ID, registrationId)
     const t3 = await insertTicket(EVENT_ID, registrationId)
+    cleanup = async () => {
+      await deleteTicketAndRegistration(t1.id, registrationId)
+      await deleteTicketAndRegistration(t2.id, registrationId)
+      await deleteTicketAndRegistration(t3.id, registrationId)
+    }
 
     await page.context().clearCookies()
     await page.goto('/admin')
@@ -243,23 +269,26 @@ test.describe('companion attendee emails', () => {
     await page.getByRole('button', { name: 'Ingresar' }).click()
     await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
 
+    // EVENT_ID is a real, shared production event — other registrations with
+    // 3 spots can already exist in its roster, so "Entrada 1/3" etc. aren't
+    // unique on the page. The roster is ordered by created_at ascending and
+    // these 3 tickets were just inserted, so they're the last matches.
     await page.goto(`/admin/catas/${EVENT_ID}/live`)
-    await expect(page.getByText('Entrada 1/3', { exact: true })).toBeVisible()
-    await expect(page.getByText('Entrada 2/3', { exact: true })).toBeVisible()
-    await expect(page.getByText('Entrada 3/3', { exact: true })).toBeVisible()
+    await expect(page.getByText('Entrada 1/3', { exact: true }).last()).toBeVisible()
+    await expect(page.getByText('Entrada 2/3', { exact: true }).last()).toBeVisible()
+    await expect(page.getByText('Entrada 3/3', { exact: true }).last()).toBeVisible()
 
-    const row2 = page.getByText('Entrada 2/3', { exact: true }).locator('..')
+    const row2 = page.getByText('Entrada 2/3', { exact: true }).last().locator('..')
     await row2.locator('input[type="email"]').fill('companion2@example.com')
     await row2.getByRole('button', { name: 'Guardar' }).click()
 
     await page.reload()
     await expect(page.getByText('companion2@example.com')).toBeVisible()
     // Ticket 1/3 has no attendee_email of its own — it always shows the
-    // registration's own email instead, which must be unaffected by 2/3's edit.
-    await expect(page.getByText('e2e-spots-integrity@example.com')).toBeVisible()
-
-    await deleteTicketAndRegistration(t1.id, registrationId)
-    await deleteTicketAndRegistration(t2.id, registrationId)
-    await deleteTicketAndRegistration(t3.id, registrationId)
+    // registration's own email instead, which must be unaffected by 2/3's
+    // edit. e2e-spots-integrity@example.com is a shared fixture used by
+    // other specs too, so scope to the last match (this test's own row,
+    // freshly created) rather than assuming it's unique on the page.
+    await expect(page.getByText('e2e-spots-integrity@example.com').last()).toBeVisible()
   })
 })
