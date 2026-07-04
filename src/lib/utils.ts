@@ -13,6 +13,30 @@ export function formatPrice(price: number, currency = 'ARS') {
   }).format(price)
 }
 
+// Real Pichincha number — used whenever we don't know (or can't reach) the
+// visitor's branch. Club.tsx/Empresas.tsx/Faq.tsx/PagoFallido.tsx/
+// PagoPendiente.tsx each used to inline this fallback independently, and
+// three of them still had the original placeholder (5493410000000, which
+// never corresponded to a real number) months after the other two were
+// fixed — a duplicated literal silently drifting out of sync. One place now.
+const FALLBACK_WHATSAPP_NUMBER = '5493417478993'
+
+export function getWhatsAppUrl(phone: string | null | undefined) {
+  const digits = phone ? phone.replace(/\D/g, '') : FALLBACK_WHATSAPP_NUMBER
+  return `https://wa.me/${digits}`
+}
+
+// PagoExitoso/PagoFallido/PagoPendiente each stash the checkout's
+// title/price/branchSlug/etc here before redirecting to MercadoPago, since
+// none of that survives the round trip through MP's own pages otherwise.
+export function getMpCheckout(): Record<string, unknown> | null {
+  try {
+    return JSON.parse(sessionStorage.getItem('mp_checkout') ?? 'null')
+  } catch {
+    return null
+  }
+}
+
 // For plain calendar dates (no time-of-day/timezone — events.date,
 // courses.start_date, etc.) — they mean "this day", full stop. new
 // Date(dateStr) anchors a date-only string to UTC midnight of the right day,

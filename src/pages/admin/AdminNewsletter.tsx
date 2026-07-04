@@ -26,14 +26,18 @@ export function AdminNewsletter() {
 
   async function handleDelete(id: string, email: string) {
     if (!confirm(`¿Eliminar a ${email} de la lista?`)) return
-    await supabase.from('newsletter').delete().eq('id', id)
+    const { error } = await supabase.from('newsletter').delete().eq('id', id)
+    if (error) {
+      alert('No se pudo eliminar el suscriptor.')
+      return
+    }
     qc.invalidateQueries({ queryKey: ['admin-newsletter'] })
   }
 
   function exportCSV() {
     if (!data?.length) return
     const rows = ['Email,Fecha'].concat(
-      data.map(s => `${s.email},${s.created_at ? new Date(s.created_at).toLocaleDateString('es-AR') : ''}`)
+      data.map(s => `${s.email},${s.created_at ? new Date(s.created_at).toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' }) : ''}`)
     )
     const blob = new Blob([rows.join('\n')], { type: 'text/csv' })
     const url = URL.createObjectURL(blob)
@@ -96,7 +100,7 @@ export function AdminNewsletter() {
                   <td className="px-4 py-3 text-[var(--color-dark)]">{s.email}</td>
                   <td className="px-4 py-3 text-[var(--color-dark-muted)]">
                     {s.created_at
-                      ? new Date(s.created_at).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })
+                      ? new Date(s.created_at).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'America/Argentina/Buenos_Aires' })
                       : '—'}
                   </td>
                   <td className="px-4 py-3 text-right">

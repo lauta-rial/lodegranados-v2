@@ -67,7 +67,11 @@ export function EventHostsManager({ open, event, onClose }: {
 
   async function handleRemove(id: string) {
     if (!confirm('¿Quitar a este host del evento?')) return
-    await supabase.from('event_hosts').delete().eq('id', id)
+    const { error } = await supabase.from('event_hosts').delete().eq('id', id)
+    if (error) {
+      alert('No se pudo quitar al host.')
+      return
+    }
     qc.invalidateQueries({ queryKey: ['event-hosts', event.id] })
   }
 

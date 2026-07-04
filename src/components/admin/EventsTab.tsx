@@ -45,7 +45,11 @@ export function EventsTab({ kind }: { kind: EventKind }) {
 
   async function handleDelete(id: string) {
     if (!confirm(`¿Eliminar este ${noun}?`)) return
-    await supabase.from('events').delete().eq('id', id)
+    const { error } = await supabase.from('events').delete().eq('id', id)
+    if (error) {
+      alert(`No se pudo eliminar el ${noun} — probablemente todavía tiene reservas asociadas.`)
+      return
+    }
     qc.invalidateQueries({ queryKey: ['admin-events', kind] })
     qc.invalidateQueries({ queryKey: ['admin-dashboard'] })
   }

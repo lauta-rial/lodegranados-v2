@@ -7,16 +7,14 @@ import { useAuth } from '@/context/AuthContext'
 import { useCheckout } from '@/hooks/useCheckout'
 import { CheckoutModal } from '@/components/CheckoutModal'
 import { Skeleton } from '@/components/ui/Skeleton'
-import { formatPrice } from '@/lib/utils'
+import { formatPrice, getWhatsAppUrl } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 import type { Plan } from '@/types/database'
 
 export function Club() {
   const branch = useBranch()
   const { data: plans, isLoading, error } = usePlans(branch?.id)
-  const waUrl = branch?.phone
-    ? `https://wa.me/${branch.phone.replace(/\D/g, '')}`
-    : 'https://wa.me/5493410000000'
+  const waUrl = getWhatsAppUrl(branch?.phone)
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">

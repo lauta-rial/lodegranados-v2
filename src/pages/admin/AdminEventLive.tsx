@@ -430,7 +430,7 @@ function CheckInBadge({ validatedAt }: { validatedAt: string | null }) {
       <span className="shrink-0 rounded-full bg-white/10 px-2.5 py-1 text-xs text-white/50">Pendiente</span>
     )
   }
-  const time = new Date(validatedAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
+  const time = new Date(validatedAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Argentina/Buenos_Aires' })
   return (
     <span className="shrink-0 rounded-full bg-emerald-500/20 px-2.5 py-1 text-xs font-medium text-emerald-400">
       ✓ Ingresó {time}
@@ -651,7 +651,7 @@ function TicketCameraPanel({ sessionId, onValidated }: { sessionId: string; onVa
               <p className="mt-2 text-lg font-bold text-white">YA FUE VALIDADO</p>
               <p className="mt-1 text-sm text-white/90">{result.name}</p>
               <p className="mt-0.5 text-xs text-white/75">
-                {new Date(result.validatedAt).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })}
+                {new Date(result.validatedAt).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Argentina/Buenos_Aires' })}
               </p>
             </>
           )}

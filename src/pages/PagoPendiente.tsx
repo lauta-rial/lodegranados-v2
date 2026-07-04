@@ -1,19 +1,14 @@
 import { Link } from 'react-router-dom'
 import { Clock } from 'lucide-react'
 import { useBranches } from '@/hooks/useBranches'
-
-function getMpCheckout() {
-  try { return JSON.parse(sessionStorage.getItem('mp_checkout') ?? 'null') } catch { return null }
-}
+import { getWhatsAppUrl, getMpCheckout } from '@/lib/utils'
 
 export function PagoPendiente() {
   const { data: branches } = useBranches()
   const mpCheckout = getMpCheckout()
   const branchSlug = mpCheckout?.branchSlug
   const branch = branches?.find((b) => b.slug === branchSlug)
-  const waUrl = branch?.phone
-    ? `https://wa.me/${branch.phone.replace(/\D/g, '')}`
-    : 'https://wa.me/5493417478993'
+  const waUrl = getWhatsAppUrl(branch?.phone)
 
   return (
     <div className="mx-auto max-w-lg px-4 py-24 text-center">

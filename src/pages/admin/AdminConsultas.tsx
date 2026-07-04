@@ -37,7 +37,11 @@ export function AdminConsultas() {
     if (!confirm('¿Eliminar esta consulta permanentemente?')) return
     let q = supabase.from('inquiries').delete().eq('id', id)
     if (branchId) q = q.eq('branch_id', branchId)
-    await q
+    const { error } = await q
+    if (error) {
+      alert('No se pudo eliminar la consulta.')
+      return
+    }
     qc.invalidateQueries({ queryKey: ['admin-inquiries'] })
     qc.invalidateQueries({ queryKey: ['admin-dashboard'] })
   }

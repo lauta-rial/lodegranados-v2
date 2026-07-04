@@ -59,7 +59,11 @@ function PlansTab() {
 
   async function handleDelete(id: string) {
     if (!confirm('¿Eliminar este plan?')) return
-    await supabase.from('plans').delete().eq('id', id)
+    const { error } = await supabase.from('plans').delete().eq('id', id)
+    if (error) {
+      alert('No se pudo eliminar el plan — probablemente todavía tiene suscripciones activas.')
+      return
+    }
     qc.invalidateQueries({ queryKey: ['admin-plans'] })
     qc.invalidateQueries({ queryKey: ['plans'] })
   }

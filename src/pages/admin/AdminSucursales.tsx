@@ -25,7 +25,11 @@ export function AdminSucursales() {
 
   async function handleDelete(id: string) {
     if (!confirm('¿Eliminar esta sucursal? Esta acción no se puede deshacer.')) return
-    await supabase.from('branches').delete().eq('id', id)
+    const { error } = await supabase.from('branches').delete().eq('id', id)
+    if (error) {
+      alert('No se pudo eliminar la sucursal — probablemente todavía tiene eventos, cursos o planes asociados.')
+      return
+    }
     qc.invalidateQueries({ queryKey: ['admin-branches'] })
     qc.invalidateQueries({ queryKey: ['branches'] })
   }

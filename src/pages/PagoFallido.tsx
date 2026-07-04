@@ -1,10 +1,7 @@
 import { Link, useSearchParams } from 'react-router-dom'
 import { XCircle } from 'lucide-react'
 import { useBranches } from '@/hooks/useBranches'
-
-function getMpCheckout() {
-  try { return JSON.parse(sessionStorage.getItem('mp_checkout') ?? 'null') } catch { return null }
-}
+import { getWhatsAppUrl, getMpCheckout } from '@/lib/utils'
 
 export function PagoFallido() {
   const [searchParams] = useSearchParams()
@@ -13,9 +10,7 @@ export function PagoFallido() {
   const mpCheckout = getMpCheckout()
   const branchSlug = mpCheckout?.branchSlug
   const branch = branches?.find((b) => b.slug === branchSlug)
-  const waUrl = branch?.phone
-    ? `https://wa.me/${branch.phone.replace(/\D/g, '')}`
-    : 'https://wa.me/5493417478993'
+  const waUrl = getWhatsAppUrl(branch?.phone)
 
   const type = searchParams.get('type')
   const ref = searchParams.get('ref')

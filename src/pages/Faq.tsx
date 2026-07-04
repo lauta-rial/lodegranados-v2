@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { ChevronDown } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn, getWhatsAppUrl } from '@/lib/utils'
 import { useBranch } from '@/context/BranchContext'
 
 interface FaqItem {
@@ -99,9 +99,7 @@ const categories: Category[] = [
 
 export function Faq() {
   const branch = useBranch()
-  const waUrl = branch?.phone
-    ? `https://wa.me/${branch.phone.replace(/\D/g, '')}`
-    : 'https://wa.me/5493410000000'
+  const waUrl = getWhatsAppUrl(branch?.phone)
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6 lg:px-8">

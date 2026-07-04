@@ -230,6 +230,28 @@ function SubscriptionSection({ userId }: { userId: string }) {
   )
 }
 
+// registrations absorbed enrollments — a cata reservation and a curso
+// enrollment are both rows here, distinguished only by their event's kind.
+// ReservationsSection/EnrollmentsSection used to each run their own
+// near-identical query (same table, same user_id filter, mostly-overlapping
+// columns) purely to end up filtering client-side by kind anyway. One
+// shared query — same queryKey in both call sites, so react-query dedupes
+// it into a single request — and each section still derives its own shape.
+function useMyRegistrationsRaw(userId: string) {
+  return useQuery({
+    queryKey: ['my-registrations-raw', userId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('registrations')
+        .select('*, events(title, date, time, location, instructor_name, branch_id, kind), tickets(token, validated_at)')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+      if (error) throw error
+      return data ?? []
+    },
+  })
+}
+
 function ReservationsSection({ userId }: { userId: string }) {
   const { data: branches } = useBranches()
   const slugForId = (id: string | null | undefined) =>
@@ -237,31 +259,21 @@ function ReservationsSection({ userId }: { userId: string }) {
   const firstBranch = branches?.[0]
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['my-registrations', userId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('registrations')
-        .select('*, events(title, date, time, location, branch_id, kind), tickets(token, validated_at)')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-      if (error) throw error
-      // registrations now also holds curso enrollments (kind='curso') — those
-      // are shown separately below, in "Mis cursos".
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return (data ?? [])
-        .filter((r: any) => r.events?.kind !== 'curso')
-        .map((r: any) => ({
-          ...r,
-          event_title: r.events?.title ?? '—',
-          event_date: r.events?.date,
-          event_time: r.events?.time,
-          event_location: r.events?.location,
-          event_branch_id: r.events?.branch_id,
-          tickets: (r.tickets ?? []) as { token: string; validated_at: string | null }[],
-        }))
-    },
-  })
+  const { data: raw, isLoading, isError } = useMyRegistrationsRaw(userId)
+  // registrations now also holds curso enrollments (kind='curso') — those
+  // are shown separately below, in "Mis cursos".
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const data = (raw ?? [])
+    .filter((r: any) => r.events?.kind !== 'curso')
+    .map((r: any) => ({
+      ...r,
+      event_title: r.events?.title ?? '—',
+      event_date: r.events?.date,
+      event_time: r.events?.time,
+      event_location: r.events?.location,
+      event_branch_id: r.events?.branch_id,
+      tickets: (r.tickets ?? []) as { token: string; validated_at: string | null }[],
+    }))
 
   return (
     <section>
@@ -348,30 +360,18 @@ function EnrollmentsSection({ userId }: { userId: string }) {
     branches?.find((b) => b.id === id)?.slug ?? ''
   const firstBranch = branches?.[0]
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['my-enrollments', userId],
-    queryFn: async () => {
-      // registrations absorbed enrollments — a curso enrollment is a
-      // registrations row whose event has kind='curso'.
-      const { data, error } = await supabase
-        .from('registrations')
-        .select('*, events(title, date, instructor_name, branch_id, kind)')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-      if (error) throw error
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return (data ?? [])
-        .filter((r: any) => r.events?.kind === 'curso')
-        .map((r: any) => ({
-          ...r,
-          course_id: r.event_id,
-          course_title: r.events?.title ?? '—',
-          course_date: r.events?.date,
-          instructor: r.events?.instructor_name,
-          course_branch_id: r.events?.branch_id,
-        }))
-    },
-  })
+  const { data: raw, isLoading, isError } = useMyRegistrationsRaw(userId)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const data = (raw ?? [])
+    .filter((r: any) => r.events?.kind === 'curso')
+    .map((r: any) => ({
+      ...r,
+      course_id: r.event_id,
+      course_title: r.events?.title ?? '—',
+      course_date: r.events?.date,
+      instructor: r.events?.instructor_name,
+      course_branch_id: r.events?.branch_id,
+    }))
 
   return (
     <section>

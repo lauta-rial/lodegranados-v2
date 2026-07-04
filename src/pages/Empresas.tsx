@@ -2,12 +2,11 @@ import { useState, type FormEvent } from 'react'
 import { MessageCircle, Mail, Building2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useBranch } from '@/context/BranchContext'
+import { getWhatsAppUrl } from '@/lib/utils'
 
 export function Empresas() {
   const branch = useBranch()
-  const waUrl = branch?.phone
-    ? `https://wa.me/${branch.phone.replace(/\D/g, '')}`
-    : 'https://wa.me/5493410000000'
+  const waUrl = getWhatsAppUrl(branch?.phone)
   const [form, setForm] = useState({ name: '', email: '', message: '' })
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(false)
