@@ -40,6 +40,19 @@ Deno.serve(async (req) => {
       })
     }
 
+    // Club DeVinos plans now go through create-mp-subscription (real
+    // recurring MercadoPago PreApproval billing) — this one-time-payment
+    // path used to be how 'plan' checkouts worked, which is exactly the bug
+    // fixed today: it created an "active" subscription after a single
+    // charge that never recurred. Rejecting it here closes that path
+    // outright instead of leaving it reachable-but-unused.
+    if (type === 'plan') {
+      return new Response(JSON.stringify({ error: 'Los planes del Club se suscriben con create-mp-subscription, no con pago único' }), {
+        status: 400,
+        headers: { ...cors, 'Content-Type': 'application/json' },
+      })
+    }
+
     // Exact match or path-prefix — prevents subdomain-suffix bypass
     if (!ALLOWED_ORIGINS.some((o) => siteUrl === o || siteUrl.startsWith(o + '/'))) {
       return new Response(JSON.stringify({ error: 'Origen no permitido' }), {
@@ -58,12 +71,11 @@ Deno.serve(async (req) => {
 
     // The price is looked up server-side from the real row, never trusted
     // from the request body — a client used to be able to send any `price`
-    // it wanted here and MercadoPago would just charge that. `type` still
-    // distinguishes 'event'/'course' (both live in `events` now, kind is
-    // irrelevant for pricing) from 'plan' (Club DeVinos, in `plans`).
-    const priceTable = type === 'plan' ? 'plans' : 'events'
+    // it wanted here and MercadoPago would just charge that. 'plan' is
+    // rejected above, so the only types reaching here ('event'/'course')
+    // both live in `events` (kind is irrelevant for pricing).
     const { data: priceRow, error: priceErr } = await supabase
-      .from(priceTable)
+      .from('events')
       .select('price')
       .eq('id', id)
       .maybeSingle()

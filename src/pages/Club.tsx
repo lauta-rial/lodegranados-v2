@@ -4,7 +4,7 @@ import { Check, ArrowRight } from 'lucide-react'
 import { usePlans } from '@/hooks/usePlans'
 import { useBranch } from '@/context/BranchContext'
 import { useAuth } from '@/context/AuthContext'
-import { useCheckout } from '@/hooks/useCheckout'
+import { useSubscription } from '@/hooks/useSubscription'
 import { CheckoutModal } from '@/components/CheckoutModal'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { formatPrice, getWhatsAppUrl } from '@/lib/utils'
@@ -70,19 +70,29 @@ export function Club() {
 function PlanCard({ plan, branchSlug }: { plan: Plan; branchSlug: string }) {
   const features = Array.isArray(plan.features) ? (plan.features as string[]) : []
   const { user } = useAuth()
-  const { checkout, loading, error } = useCheckout()
+  const { subscribe, loading, error: subscribeError } = useSubscription()
   const [modalOpen, setModalOpen] = useState(false)
+  const [noPlanError, setNoPlanError] = useState<string | null>(null)
+  const error = subscribeError ?? noPlanError
 
   function handleSuscribir() {
+    if (!plan.mp_plan_id) {
+      setNoPlanError('Este plan no está disponible para suscripción en este momento.')
+      return
+    }
     if (user) {
-      checkout({ type: 'plan', id: plan.id, title: plan.name, price: plan.price ?? 0 })
+      subscribe({ planId: plan.id, mpPlanId: plan.mp_plan_id, planName: plan.name, price: plan.price ?? 0 })
     } else {
       setModalOpen(true)
     }
   }
 
   function handleModalConfirm(name: string, email: string) {
-    checkout({ type: 'plan', id: plan.id, title: plan.name, price: plan.price ?? 0, payerName: name, payerEmail: email })
+    if (!plan.mp_plan_id) {
+      setNoPlanError('Este plan no está disponible para suscripción en este momento.')
+      return
+    }
+    subscribe({ planId: plan.id, mpPlanId: plan.mp_plan_id, planName: plan.name, price: plan.price ?? 0, payerName: name, payerEmail: email })
   }
 
   return (

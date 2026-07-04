@@ -129,9 +129,8 @@ export async function updateRegistrationStatus(id: string, status: string): Prom
   })
 }
 
-// subscriptions has no email column (guest checkout has no user_id either),
-// so cleanup targets the most recently created row for the plan instead —
-// safe as long as tests in this plan aren't run concurrently.
+// Cleanup targets the most recently created row for the plan — safe as
+// long as tests against this plan aren't run concurrently.
 export async function deleteLatestSubscription(planId: string): Promise<void> {
   const findRes = await adminRequest(`subscriptions?plan_id=eq.${planId}&select=id&order=created_at.desc&limit=1`, {
     action: 'find subscription to delete',
@@ -139,6 +138,17 @@ export async function deleteLatestSubscription(planId: string): Promise<void> {
   const [row] = await findRes.json()
   if (!row) return
   await adminRequest(`subscriptions?id=eq.${row.id}`, { method: 'DELETE', action: 'delete subscription' })
+}
+
+// Real recurring-billing subscriptions (see project_audit_2026-07-04) are
+// keyed by preapproval_id, not plan_id/payment_id — used to confirm a
+// fabricated preapproval_id created no row at all, not just to clean up.
+export async function getSubscriptionByPreapprovalId(preapprovalId: string): Promise<{ id: string } | null> {
+  const res = await adminRequest(`subscriptions?preapproval_id=eq.${preapprovalId}&select=id`, {
+    action: 'read subscription by preapproval_id',
+  })
+  const [row] = await res.json()
+  return row ?? null
 }
 
 // --- Scanner test helpers ---

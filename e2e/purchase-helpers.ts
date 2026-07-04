@@ -43,3 +43,21 @@ export async function payWithTestCard(page: Page, label: string): Promise<void> 
 
   await expect(page).toHaveURL(/\/pago-exitoso/, { timeout: 30_000 })
 }
+
+// Club DeVinos subscriptions redirect to MercadoPago's separate
+// subscription/PreApproval checkout — a genuinely different UI from the
+// one-off checkout/preferences flow payWithTestCard above handles (confirmed
+// by walking through it directly): accept terms → choose payment method
+// (labeled just "Tarjeta Crédito", not "Tarjeta Crédito, débito o") → card
+// form. Same manual-pause pattern from there.
+export async function payWithTestCardSubscription(page: Page, label: string): Promise<void> {
+  await page.getByRole('checkbox', { name: /Acepto los Términos y condiciones/ }).click()
+  await page.getByRole('button', { name: 'Elegir medio de pago' }).click()
+  await page.getByRole('button', { name: 'Tarjeta Crédito' }).click()
+
+  console.log(`\n>>> Complete the card form for ${label} and click Pagar:`)
+  console.log(TEST_CARD)
+  await page.pause()
+
+  await expect(page).toHaveURL(/\/pago-exitoso/, { timeout: 30_000 })
+}

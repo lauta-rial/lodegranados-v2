@@ -41,6 +41,70 @@ async function validateSignature(req: Request, paymentId: string | number): Prom
   return computed === v1
 }
 
+// Fired on every change to a subscriber's recurring authorization (created,
+// authorized, paused, cancelled). 'authorized' is forwarded to send-email —
+// same idempotent activation path PagoExitoso.tsx uses on the browser
+// redirect, a backup in case the user closes their browser right after
+// authorizing, before that redirect's JS runs. 'cancelled'/'paused' are
+// synced directly here: there's no untrusted-caller equivalent for "mark
+// this subscription cancelled" the way there is for "activate a
+// subscription" (nothing legitimate ever needs to claim that from the
+// browser), so this doesn't need the same re-verify-in-send-email pattern.
+async function handleSubscriptionPreapproval(preapprovalId: string) {
+  const mpRes = await fetch(`https://api.mercadopago.com/preapproval/${preapprovalId}`, {
+    headers: { Authorization: `Bearer ${MP_ACCESS_TOKEN}` },
+  })
+  if (!mpRes.ok) {
+    console.error('mp-webhook: preapproval fetch failed', await mpRes.text())
+    return
+  }
+  const preapproval = await mpRes.json()
+
+  if (preapproval.status === 'authorized') {
+    const emailRes = await fetch(`${SUPABASE_URL}/functions/v1/send-email`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        type: 'subscription',
+        preapprovalId,
+        to: preapproval.payer_email ?? '',
+        data: { siteUrl: Deno.env.get('SITE_URL') ?? 'https://lodegranados-v2-chi.vercel.app' },
+      }),
+    })
+    if (!emailRes.ok) console.error('mp-webhook: send-email (subscription) error:', await emailRes.text())
+    return
+  }
+
+  if (preapproval.status === 'cancelled' || preapproval.status === 'paused') {
+    const { error } = await supabase
+      .from('subscriptions')
+      .update({ status: preapproval.status })
+      .eq('preapproval_id', preapprovalId)
+    if (error) console.error('mp-webhook: subscriptions status sync failed', error.message)
+  }
+}
+
+// Fired once per recurring charge (roughly monthly, per subscriber) —
+// always forwarded to send-email, which independently re-verifies the
+// authorized_payment against MP before sending a receipt (same
+// defense-in-depth as the 'payment'/'subscription' paths: this webhook's
+// signature check gates that *a* notification is genuine, not that this
+// specific payment record still says what it said a moment ago).
+async function handleSubscriptionAuthorizedPayment(authorizedPaymentId: string) {
+  const emailRes = await fetch(`${SUPABASE_URL}/functions/v1/send-email`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ type: 'subscription_charged', authorizedPaymentId }),
+  })
+  if (!emailRes.ok) console.error('mp-webhook: send-email (subscription_charged) error:', await emailRes.text())
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'GET') {
     return new Response('ok', { status: 200 })
@@ -50,15 +114,31 @@ Deno.serve(async (req) => {
     const body = await req.json()
     const { type, data } = body
 
-    if (type !== 'payment' || !data?.id) {
+    if (!data?.id) {
       return new Response('ok', { status: 200 })
     }
 
-    // Validate MP signature
+    // The HMAC manifest is `id:{data.id};request-id:...;ts:...` regardless
+    // of topic — MP uses the same signature scheme for payment, preapproval,
+    // and authorized_payment notifications alike.
     const valid = await validateSignature(req, data.id)
     if (!valid) {
-      console.warn('Invalid webhook signature for payment', data.id)
+      console.warn('Invalid webhook signature for', type, data.id)
       return new Response('unauthorized', { status: 401 })
+    }
+
+    if (type === 'subscription_preapproval') {
+      await handleSubscriptionPreapproval(String(data.id))
+      return new Response('ok', { status: 200 })
+    }
+
+    if (type === 'subscription_authorized_payment') {
+      await handleSubscriptionAuthorizedPayment(String(data.id))
+      return new Response('ok', { status: 200 })
+    }
+
+    if (type !== 'payment') {
+      return new Response('ok', { status: 200 })
     }
 
     // Fetch payment details from MP
@@ -98,12 +178,13 @@ Deno.serve(async (req) => {
       return new Response('ok', { status: 200 })
     }
 
-    // 'event' and 'course' both land on 'reservation' now — registrations
+    // 'event' and 'course' both land on 'reservation' — registrations
     // absorbed enrollments, and events absorbed courses (kind: 'cata'|'curso'),
     // so send-email's reservation branch handles both by looking at the
-    // event's own kind instead of the caller's purchase type.
-    const emailType = pending.type === 'plan' ? 'subscription' : 'reservation'
-
+    // event's own kind. 'plan' can't reach this 'payment' handler anymore —
+    // create-mp-preference rejects type:'plan' outright, so pending_checkouts
+    // never gets one; Club subscriptions go through
+    // handleSubscriptionPreapproval above instead.
     const emailRes = await fetch(`${SUPABASE_URL}/functions/v1/send-email`, {
       method: 'POST',
       headers: {
@@ -111,8 +192,7 @@ Deno.serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        type: emailType,
-        purchaseType: pending.type,
+        type: 'reservation',
         ref: pending.ref,
         paymentId: String(payment.id),
         userId: pending.user_id ?? null,

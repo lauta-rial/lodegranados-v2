@@ -113,6 +113,89 @@ async function verifyApprovedPayment(paymentId: string | null | undefined): Prom
   }
 }
 
+type VerifiedSubscription = {
+  plan: { id: string; name: string; branch_id: string | null; price: number | null }
+  payerEmail: string | null
+}
+
+// Same reasoning as verifyApprovedPayment above, for the recurring-billing
+// side: Club plans are now real MercadoPago PreApproval subscriptions
+// (create-mp-preference rejects type:'plan' outright), and this endpoint
+// is still verify_jwt:false and reachable directly with the anon key
+// (PagoExitoso.tsx calls it from the browser on the redirect back from MP's
+// subscription checkout). preapproval_plan_id is looked up against our own
+// `plans` table rather than trusted from the request body, so a caller
+// can't claim a different (cheaper) plan than what was actually authorized.
+async function verifyAuthorizedPreapproval(preapprovalId: string | null | undefined): Promise<VerifiedSubscription | null> {
+  if (!preapprovalId || !MP_ACCESS_TOKEN) return null
+
+  const mpRes = await fetch(`https://api.mercadopago.com/preapproval/${preapprovalId}`, {
+    headers: { Authorization: `Bearer ${MP_ACCESS_TOKEN}` },
+  })
+  if (!mpRes.ok) {
+    console.error('verifyAuthorizedPreapproval: MP fetch failed', await mpRes.text())
+    return null
+  }
+  const preapproval = await mpRes.json()
+  if (preapproval.status !== 'authorized' || !preapproval.preapproval_plan_id) return null
+
+  const { data: plan, error: planErr } = await supabase
+    .from('plans')
+    .select('id, name, branch_id, price')
+    .eq('mp_plan_id', preapproval.preapproval_plan_id)
+    .maybeSingle()
+  if (planErr) console.error('verifyAuthorizedPreapproval: plans lookup failed', planErr.message)
+  if (!plan) return null
+
+  return { plan, payerEmail: preapproval.payer_email ?? null }
+}
+
+type VerifiedCharge = {
+  userId: string | null
+  email: string | null
+  planName: string
+  transactionAmount: number
+}
+
+// Verifies a single recurring charge (one per month, per subscriber) before
+// sending a receipt email — same "never trust the caller" gate as the
+// other verify* functions, since mp-webhook forwards this straight from an
+// MP notification without pre-verifying it itself (defense in depth: even
+// though mp-webhook already validated the notification's HMAC signature,
+// send-email re-checks independently, consistent with how the
+// reservation/subscription paths already work).
+async function verifyAuthorizedPayment(authorizedPaymentId: string | null | undefined): Promise<VerifiedCharge | null> {
+  if (!authorizedPaymentId || !MP_ACCESS_TOKEN) return null
+
+  const mpRes = await fetch(`https://api.mercadopago.com/authorized_payments/${authorizedPaymentId}`, {
+    headers: { Authorization: `Bearer ${MP_ACCESS_TOKEN}` },
+  })
+  if (!mpRes.ok) {
+    console.error('verifyAuthorizedPayment: MP fetch failed', await mpRes.text())
+    return null
+  }
+  const payment = await mpRes.json()
+  if (payment.status !== 'processed' || !payment.preapproval_id) return null
+
+  const { data: sub, error: subErr } = await supabase
+    .from('subscriptions')
+    .select('user_id, email, plans(name)')
+    .eq('preapproval_id', payment.preapproval_id)
+    .maybeSingle()
+  if (subErr) console.error('verifyAuthorizedPayment: subscriptions lookup failed', subErr.message)
+  if (!sub) return null
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const planName = (sub as any).plans?.name ?? 'Club DeVinos'
+
+  return {
+    userId: sub.user_id,
+    email: sub.email,
+    planName,
+    transactionAmount: Number(payment.transaction_amount) || 0,
+  }
+}
+
 function formatEventDateTime(date: string | null, time: string | null): string {
   if (!date) return ''
   // events.date is a plain calendar date with no time-of-day/timezone — it
@@ -306,7 +389,7 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json()
-    const { type, ref, paymentId, userId, payerName, payerEmail, to, name, data: meta } = body
+    const { type, ref, paymentId, preapprovalId, authorizedPaymentId, userId, payerName, payerEmail, to, name, data: meta } = body
 
     const siteUrl = meta?.siteUrl ?? 'https://lodegranados-v2-chi.vercel.app'
     const spots = Math.max(1, parseInt(meta?.spots ?? '1') || 1)
@@ -504,49 +587,52 @@ Deno.serve(async (req) => {
     }
 
     if (type === 'subscription') {
-      // Same verification gate as 'reservation' above, same reason: this
-      // endpoint is reachable directly with just the public anon key, and
-      // must not activate a subscription without confirming a real
-      // approved payment first. `ref` (the plan id) comes from the
-      // verified pending_checkouts row, not the request body.
-      const verifiedSub = await verifyApprovedPayment(paymentId)
-      if (!verifiedSub) {
-        return new Response(JSON.stringify({ error: 'No pudimos verificar el pago' }), {
+      // Club DeVinos plans are real MercadoPago PreApproval subscriptions
+      // now — create-mp-preference rejects type:'plan' outright, so this
+      // can no longer be reached via a one-time payment. The signal here
+      // is preapprovalId, verified independently against MP's API exactly
+      // like paymentId is for reservations (this endpoint is
+      // verify_jwt:false and reachable directly by anyone with the anon
+      // key — PagoExitoso.tsx calls it from the browser).
+      const verified = await verifyAuthorizedPreapproval(preapprovalId)
+      if (!verified) {
+        return new Response(JSON.stringify({ error: 'No pudimos verificar la suscripción' }), {
           status: 403,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
       }
-      const ref = verifiedSub.ref
 
-      // Idempotency by payment_id
-      if (paymentId) {
-        const { data: existing, error: existingErr } = await supabase
-          .from('subscriptions')
-          .select('id')
-          .eq('payment_id', paymentId)
-          .maybeSingle()
-        if (existingErr) console.error('subscription: idempotency lookup failed', existingErr.message)
-        if (existing) {
-          return new Response(JSON.stringify({ ok: true, skipped: true }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          })
-        }
+      // Idempotency by preapproval_id (unique constraint) — both
+      // PagoExitoso.tsx (browser redirect back from MP) and mp-webhook's
+      // subscription_preapproval handler can race to activate the same
+      // subscription; whichever gets here first wins, the other is a no-op.
+      const { data: existing, error: existingErr } = await supabase
+        .from('subscriptions')
+        .select('id')
+        .eq('preapproval_id', preapprovalId)
+        .maybeSingle()
+      if (existingErr) console.error('subscription: idempotency lookup failed', existingErr.message)
+      if (existing) {
+        return new Response(JSON.stringify({ ok: true, skipped: true }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
       }
 
-      const { data: plan, error: planErr } = await supabase.from('plans').select('name, branch_id, price').eq('id', ref).single()
-      if (planErr) console.error('subscription: plan lookup failed', planErr.message)
+      const emailTo = payerEmail || to || verified.payerEmail || null
+      const emailName = payerName || name || (emailTo ? emailTo.split('@')[0] : null)
 
       const { error: dbErr } = await supabase.from('subscriptions').insert({
-        plan_id: ref,
+        plan_id: verified.plan.id,
         user_id: userId ?? null,
-        branch_id: plan?.branch_id ?? null,
-        // Always the DB's own price, never meta?.priceAmount — that came
-        // from the request body, which is exactly the value this whole
-        // verification gate exists to stop trusting.
-        monthly_price: plan?.price ?? null,
+        branch_id: verified.plan.branch_id,
+        // Always the DB's own price, never anything client-supplied — same
+        // reasoning as the reservation branch above.
+        monthly_price: verified.plan.price,
         start_date: new Date().toISOString().slice(0, 10),
         status: 'active',
-        payment_id: paymentId ?? null,
+        preapproval_id: preapprovalId,
+        name: emailName,
+        email: emailTo,
       })
       if (dbErr) {
         console.error('DB insert error (subscriptions):', dbErr.message)
@@ -556,17 +642,51 @@ Deno.serve(async (req) => {
         })
       }
 
-      const planTitle = meta?.title ?? plan?.name ?? 'Club DeVinos'
-      const branchSlug = meta?.branchSlug ?? await resolveBranchSlug(plan?.branch_id)
+      const branchSlug = meta?.branchSlug ?? await resolveBranchSlug(verified.plan.branch_id)
+      const priceLabel = verified.plan.price != null ? `$${verified.plan.price.toLocaleString('es-AR')}` : null
 
       const html = emailBase(
         '¡Bienvenido/a al Club!',
-        `<p style="color:#3d2b1f;line-height:1.7">Hola <strong>${escapeHtml(greetingName)}</strong>,</p>
-         <p style="color:#3d2b1f;line-height:1.7">Tu suscripción al <strong>${escapeHtml(planTitle)}</strong>${meta?.price ? ` (${escapeHtml(meta.price)}/mes)` : ''} fue activada. Cada mes recibirás vinos seleccionados por nuestro sommelier.</p>`,
+        `<p style="color:#3d2b1f;line-height:1.7">Hola <strong>${escapeHtml(emailName)}</strong>,</p>
+         <p style="color:#3d2b1f;line-height:1.7">Tu suscripción al <strong>${escapeHtml(verified.plan.name)}</strong>${priceLabel ? ` (${escapeHtml(priceLabel)}/mes)` : ''} fue activada. Cada mes recibirás vinos seleccionados por nuestro sommelier, y te vamos a avisar por mail cuando se realice cada cobro.</p>`,
         branchUrl(siteUrl, branchSlug, 'club'),
         'Ver mi Club',
       )
-      await sendEmail(payerEmail ?? to, 'Bienvenido/a al Club DeVinos — Lo de Granados', html)
+      if (emailTo) await sendEmail(emailTo, 'Bienvenido/a al Club DeVinos — Lo de Granados', html)
+    }
+
+    // Fired by mp-webhook on every subscription_authorized_payment
+    // notification (one per month, per subscriber) — a receipt, separate
+    // from the one-time welcome email above.
+    if (type === 'subscription_charged') {
+      const verified = await verifyAuthorizedPayment(authorizedPaymentId)
+      if (!verified) {
+        return new Response(JSON.stringify({ error: 'No pudimos verificar el cobro' }), {
+          status: 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      let emailTo = verified.email
+      if (!emailTo && verified.userId) {
+        const { data: userData, error: userErr } = await supabase.auth.admin.getUserById(verified.userId)
+        if (userErr) console.error('subscription_charged: getUserById failed', userErr.message)
+        emailTo = userData?.user?.email ?? null
+      }
+      if (!emailTo) {
+        return new Response(JSON.stringify({ ok: true, skipped: true }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      const html = emailBase(
+        'Cobro del Club confirmado',
+        `<p style="color:#3d2b1f;line-height:1.7">Hola,</p>
+         <p style="color:#3d2b1f;line-height:1.7">Se realizó el cobro mensual de tu <strong>${escapeHtml(verified.planName)}</strong> por <strong>$${verified.transactionAmount.toLocaleString('es-AR')}</strong>. El próximo envío llega antes del día 10.</p>`,
+        siteUrl,
+        'Ver mi Club',
+      )
+      await sendEmail(emailTo, 'Cobro confirmado — Club DeVinos', html)
     }
 
     return new Response(JSON.stringify({ ok: true }), {

@@ -8,7 +8,6 @@ import { formatPrice } from '@/lib/utils'
 const emailType: Record<string, string> = {
   event: 'reservation',
   course: 'reservation',
-  plan: 'subscription',
 }
 
 export function PagoExitoso() {
@@ -18,6 +17,11 @@ export function PagoExitoso() {
   const ref = params.get('ref') ?? ''
   const paymentId = params.get('payment_id') ?? ''
   const status = params.get('status') ?? ''
+  // Club DeVinos plans are real MercadoPago PreApproval subscriptions —
+  // the redirect back from MP's subscription checkout carries this instead
+  // of status/payment_id (that pair only exists on checkout/preferences
+  // returns). Different flow, handled separately below.
+  const preapprovalId = params.get('preapproval_id') ?? ''
   const processed = useRef(false)
 
   const [branchSlug] = useState<string>(() => {
@@ -30,16 +34,37 @@ export function PagoExitoso() {
   })
 
   useEffect(() => {
-    if (processed.current || !ref || authLoading) return
-    // create-mp-preference (used for events/courses/plans alike today) always
-    // redirects back as a one-time payment — status=approved is the only
-    // trustworthy signal. (A prior version also accepted a `preapproval_id`
-    // query param as an alternative, but that's fully client-controlled and
-    // never actually set by this checkout flow — it only opened a bypass
-    // where an unapproved payment could be replayed as approved by editing
-    // the URL. If real MP recurring Preapproval billing is wired up later,
-    // reintroduce a dedicated, server-verified signal then.)
-    if (status !== 'approved') return
+    if (processed.current || authLoading) return
+
+    // Club DeVinos plans are real recurring MercadoPago PreApproval
+    // subscriptions now (create-mp-preference rejects type:'plan' outright)
+    // — this redirect comes from MP's subscription checkout, whose back_url
+    // is fixed per-plan in MP's own config and carries preapproval_id, not
+    // status/payment_id (send-email verifies this server-side against MP
+    // before activating anything, same as the payment flow below).
+    if (type === 'plan' && preapprovalId) {
+      processed.current = true
+      const raw = sessionStorage.getItem('mp_checkout')
+      sessionStorage.removeItem('mp_checkout')
+      let cached: { payerName?: string; payerEmail?: string; branchSlug?: string } = {}
+      try { cached = raw ? JSON.parse(raw) : {} } catch { /* best-effort */ }
+
+      supabase.functions.invoke('send-email', {
+        body: {
+          type: 'subscription',
+          preapprovalId,
+          userId: user?.id ?? null,
+          payerName: cached.payerName,
+          payerEmail: cached.payerEmail,
+          to: cached.payerEmail,
+          name: cached.payerName || cached.payerEmail?.split('@')[0],
+          data: { branchSlug: cached.branchSlug, siteUrl: window.location.origin },
+        },
+      })
+      return
+    }
+
+    if (!ref || status !== 'approved') return
 
     const raw = sessionStorage.getItem('mp_checkout')
     if (!raw) return
@@ -61,7 +86,6 @@ export function PagoExitoso() {
       supabase.functions.invoke('send-email', {
         body: {
           type: emailType[type] ?? 'reservation',
-          purchaseType: type,   // 'event' | 'course' | 'plan' — used for DB insert
           ref,
           paymentId,
           userId: user?.id ?? null,
@@ -82,7 +106,7 @@ export function PagoExitoso() {
     } catch {
       // silent — both DB write and email are best-effort
     }
-  }, [type, ref, paymentId, status, user, authLoading])
+  }, [type, ref, paymentId, preapprovalId, status, user, authLoading])
 
   const prefix = branchSlug ? `/${branchSlug}` : ''
   const backLink =
