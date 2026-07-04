@@ -26,6 +26,14 @@ import {
 // registration row exists (see migration
 // per_session_tickets_and_session_lifecycle), same as a real purchase would.
 const PICHINCHA_ADMIN = { email: 'whatsapp.assistance.v1+pichinchaadmin@gmail.com', password: 'TestResend123!' }
+// hosttest is a permanent fixture already assigned (via event_hosts) to
+// this exact EVENT_ID — see register_e2e_testing memory. AdminEventLive.tsx
+// has no role branching at all (grepped: no `role`/`isHost` in the file),
+// so a host should get the identical page/controls an admin does here; RLS
+// is what actually scopes what they can touch. Parameterizing the 3 tests
+// below over both accounts (see LIVE_PAGE_ACCOUNTS) confirms that's really
+// true instead of just assuming it from reading the component.
+const HOST_TEST = { email: 'whatsapp.assistance.v1+hosttest@gmail.com', password: 'TestResend123!' }
 // A plain registered buyer, not an admin — used to prove the tickets RLS
 // policy actually rejects non-admin writes (see memory: this policy used to
 // be `auth.role() = 'authenticated'`, letting any logged-in user validate
@@ -35,6 +43,35 @@ const PICHINCHA_ADMIN = { email: 'whatsapp.assistance.v1+pichinchaadmin@gmail.co
 // account covers every "just a regular buyer" test need across the suite.
 const REGULAR_USER = { email: 'whatsapp.assistance.v1+checkout@gmail.com', password: 'TestResend123!' }
 const EVENT_ID = '09e0bd67-0667-497d-a055-a0169817a207' // Cata de Malbec Mendocino
+
+// Logs in at /admin and waits for whichever landing page this role gets —
+// an admin lands on the Dashboard, a host lands on HostHome (AdminLayout.tsx
+// branches on role before ever reaching a shared route) — before navigating
+// on to the live page itself, where the two roles' experience should
+// converge.
+const LIVE_PAGE_ACCOUNTS = [
+  {
+    label: 'admin',
+    ...PICHINCHA_ADMIN,
+    awaitLanding: (page: Page) => expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible(),
+  },
+  {
+    label: 'host',
+    ...HOST_TEST,
+    awaitLanding: (page: Page) => expect(page.getByText(`Host — ${HOST_TEST.email}`)).toBeVisible(),
+  },
+]
+
+async function loginAtAdmin(page: Page, account: { email: string; password: string; awaitLanding: (page: Page) => Promise<void> }): Promise<void> {
+  await page.context().clearCookies()
+  await page.goto('/admin')
+  await page.evaluate(() => localStorage.clear())
+  await page.goto('/admin')
+  await page.locator('input[type="email"]').fill(account.email)
+  await page.locator('input[type="password"]').fill(account.password)
+  await page.getByRole('button', { name: 'Ingresar' }).click()
+  await account.awaitLanding(page)
+}
 
 // Public project URL + anon key — same values shipped in the client bundle,
 // needed here to hit PostgREST directly with a regular user's own session
@@ -69,23 +106,18 @@ async function getAccessToken(page: Page): Promise<string> {
 test.describe('ticket scanning', () => {
   test.skip(!process.env.SUPABASE_SERVICE_ROLE_KEY, 'requires SUPABASE_SERVICE_ROLE_KEY')
 
-  test('live page loads for the event\'s admin', async ({ page }) => {
-    await page.context().clearCookies()
-    await page.goto('/admin')
-    await page.evaluate(() => localStorage.clear())
-    await page.goto('/admin')
-    await page.locator('input[type="email"]').fill(PICHINCHA_ADMIN.email)
-    await page.locator('input[type="password"]').fill(PICHINCHA_ADMIN.password)
-    await page.getByRole('button', { name: 'Ingresar' }).click()
-    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
+  for (const account of LIVE_PAGE_ACCOUNTS) {
+    test(`live page loads for the event's ${account.label}`, async ({ page }) => {
+      await loginAtAdmin(page, account)
 
-    await page.goto(`/admin/catas/${EVENT_ID}/live`)
-    await expect(page.getByText('Cata de Malbec Mendocino')).toBeVisible()
-    await expect(page.getByText('SIN COMENZAR')).toBeVisible()
-    // No real camera in CI/test envs, but the event hasn't started yet
-    // anyway — the camera panel only mounts once "live", so there's nothing
-    // camera-related to assert on here regardless.
-  })
+      await page.goto(`/admin/catas/${EVENT_ID}/live`)
+      await expect(page.getByText('Cata de Malbec Mendocino')).toBeVisible()
+      await expect(page.getByText('SIN COMENZAR')).toBeVisible()
+      // No real camera in CI/test envs, but the event hasn't started yet
+      // anyway — the camera panel only mounts once "live", so there's nothing
+      // camera-related to assert on here regardless.
+    })
+  }
 
   test('a ticket can only validate (mark attended) once', async ({}) => {
     const registrationId = await insertRegistration(EVENT_ID, 1)
@@ -210,41 +242,36 @@ test.describe('event live lifecycle', () => {
     await resetEventLifecycle(EVENT_ID)
   })
 
-  test('start, finish, and reopen an event from the live page', async ({ page }) => {
-    await page.context().clearCookies()
-    await page.goto('/admin')
-    await page.evaluate(() => localStorage.clear())
-    await page.goto('/admin')
-    await page.locator('input[type="email"]').fill(PICHINCHA_ADMIN.email)
-    await page.locator('input[type="password"]').fill(PICHINCHA_ADMIN.password)
-    await page.getByRole('button', { name: 'Ingresar' }).click()
-    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
+  for (const account of LIVE_PAGE_ACCOUNTS) {
+    test(`${account.label}: start, finish, and reopen an event from the live page`, async ({ page }) => {
+      await loginAtAdmin(page, account)
 
-    await page.goto(`/admin/catas/${EVENT_ID}/live`)
-    await expect(page.getByText('SIN COMENZAR')).toBeVisible()
-    await expect(page.locator('#qr-reader')).toHaveCount(0)
+      await page.goto(`/admin/catas/${EVENT_ID}/live`)
+      await expect(page.getByText('SIN COMENZAR')).toBeVisible()
+      await expect(page.locator('#qr-reader')).toHaveCount(0)
 
-    // No real camera in CI/test envs (Playwright's default chromium has no
-    // fake video device) — TicketCameraPanel renders either the live
-    // #qr-reader or a permission/device error message depending on what
-    // getUserMedia does, and either is fine here: the point of this
-    // assertion is that the camera panel mounted at all once "live", same
-    // rationale as the original scanner page-load test above.
-    const cameraPanelMounted = page.locator('#qr-reader').or(page.getByText(/cámara/i))
+      // No real camera in CI/test envs (Playwright's default chromium has no
+      // fake video device) — TicketCameraPanel renders either the live
+      // #qr-reader or a permission/device error message depending on what
+      // getUserMedia does, and either is fine here: the point of this
+      // assertion is that the camera panel mounted at all once "live", same
+      // rationale as the original scanner page-load test above.
+      const cameraPanelMounted = page.locator('#qr-reader').or(page.getByText(/cámara/i))
 
-    await page.getByRole('button', { name: 'Iniciar evento' }).click()
-    await expect(page.getByText('EN VIVO')).toBeVisible()
-    await expect(cameraPanelMounted).toBeVisible()
+      await page.getByRole('button', { name: 'Iniciar evento' }).click()
+      await expect(page.getByText('EN VIVO')).toBeVisible()
+      await expect(cameraPanelMounted).toBeVisible()
 
-    page.once('dialog', (dialog) => dialog.accept())
-    await page.getByRole('button', { name: 'Finalizar evento' }).click()
-    await expect(page.getByText('FINALIZADO')).toBeVisible()
-    await expect(page.locator('#qr-reader')).toHaveCount(0)
+      page.once('dialog', (dialog) => dialog.accept())
+      await page.getByRole('button', { name: 'Finalizar evento' }).click()
+      await expect(page.getByText('FINALIZADO')).toBeVisible()
+      await expect(page.locator('#qr-reader')).toHaveCount(0)
 
-    await page.getByRole('button', { name: 'Reabrir evento' }).click()
-    await expect(page.getByText('EN VIVO')).toBeVisible()
-    await expect(cameraPanelMounted).toBeVisible()
-  })
+      await page.getByRole('button', { name: 'Reabrir evento' }).click()
+      await expect(page.getByText('EN VIVO')).toBeVisible()
+      await expect(cameraPanelMounted).toBeVisible()
+    })
+  }
 })
 
 test.describe('companion attendee emails', () => {
@@ -263,51 +290,46 @@ test.describe('companion attendee emails', () => {
     cleanup = null
   })
 
-  test('door host can fill in a companion email on the live roster', async ({ page }) => {
-    // insertRegistration(EVENT_ID, 3) alone gets 3 tickets — a DB trigger
-    // auto-creates one per spot for the event's session, same as a real
-    // 3-spot purchase would. Deleting the registration cascades to all of
-    // them, so cleanup doesn't need to track individual ticket ids anymore.
-    const registrationId = await insertRegistration(EVENT_ID, 3)
-    cleanup = () => deleteRegistration(registrationId)
+  for (const account of LIVE_PAGE_ACCOUNTS) {
+    test(`door ${account.label} can fill in a companion email on the live roster`, async ({ page }) => {
+      // insertRegistration(EVENT_ID, 3) alone gets 3 tickets — a DB trigger
+      // auto-creates one per spot for the event's session, same as a real
+      // 3-spot purchase would. Deleting the registration cascades to all of
+      // them, so cleanup doesn't need to track individual ticket ids anymore.
+      const registrationId = await insertRegistration(EVENT_ID, 3)
+      cleanup = () => deleteRegistration(registrationId)
 
-    await page.context().clearCookies()
-    await page.goto('/admin')
-    await page.evaluate(() => localStorage.clear())
-    await page.goto('/admin')
-    await page.locator('input[type="email"]').fill(PICHINCHA_ADMIN.email)
-    await page.locator('input[type="password"]').fill(PICHINCHA_ADMIN.password)
-    await page.getByRole('button', { name: 'Ingresar' }).click()
-    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
+      await loginAtAdmin(page, account)
 
-    // EVENT_ID is a real, shared production event — other registrations with
-    // 3 spots can already exist in its roster, so "Entrada 1/3" etc. aren't
-    // unique on the page. The roster is ordered by created_at ascending and
-    // these 3 tickets were just inserted, so they're the last matches.
-    await page.goto(`/admin/catas/${EVENT_ID}/live`)
-    await expect(page.getByText('Entrada 1/3', { exact: true }).last()).toBeVisible()
-    await expect(page.getByText('Entrada 2/3', { exact: true }).last()).toBeVisible()
-    await expect(page.getByText('Entrada 3/3', { exact: true }).last()).toBeVisible()
+      // EVENT_ID is a real, shared production event — other registrations with
+      // 3 spots can already exist in its roster, so "Entrada 1/3" etc. aren't
+      // unique on the page. The roster is ordered by created_at ascending and
+      // these 3 tickets were just inserted, so they're the last matches.
+      await page.goto(`/admin/catas/${EVENT_ID}/live`)
+      await expect(page.getByText('Entrada 1/3', { exact: true }).last()).toBeVisible()
+      await expect(page.getByText('Entrada 2/3', { exact: true }).last()).toBeVisible()
+      await expect(page.getByText('Entrada 3/3', { exact: true }).last()).toBeVisible()
 
-    const row2 = page.getByText('Entrada 2/3', { exact: true }).last().locator('..')
-    await row2.locator('input[type="email"]').fill('companion2@example.com')
-    await row2.getByRole('button', { name: 'Guardar' }).click()
+      const row2 = page.getByText('Entrada 2/3', { exact: true }).last().locator('..')
+      await row2.locator('input[type="email"]').fill('companion2@example.com')
+      await row2.getByRole('button', { name: 'Guardar' }).click()
 
-    // AttendeeEmailCell's save() is async but its onClick isn't awaited by
-    // React's event system — Playwright's `.click()` only waits for the
-    // click event to dispatch, not for the fetch it kicks off. Reloading
-    // immediately aborts that in-flight PATCH (net::ERR_ABORTED), so this
-    // must wait for the client-side re-render (row switches from input to
-    // plain text once attendee_email is set) before it's safe to reload.
-    await expect(row2.getByText('companion2@example.com')).toBeVisible()
+      // AttendeeEmailCell's save() is async but its onClick isn't awaited by
+      // React's event system — Playwright's `.click()` only waits for the
+      // click event to dispatch, not for the fetch it kicks off. Reloading
+      // immediately aborts that in-flight PATCH (net::ERR_ABORTED), so this
+      // must wait for the client-side re-render (row switches from input to
+      // plain text once attendee_email is set) before it's safe to reload.
+      await expect(row2.getByText('companion2@example.com')).toBeVisible()
 
-    await page.reload()
-    await expect(page.getByText('companion2@example.com')).toBeVisible()
-    // Ticket 1/3 has no attendee_email of its own — it always shows the
-    // registration's own email instead, which must be unaffected by 2/3's
-    // edit. e2e-spots-integrity@example.com is a shared fixture used by
-    // other specs too, so scope to the last match (this test's own row,
-    // freshly created) rather than assuming it's unique on the page.
-    await expect(page.getByText('e2e-spots-integrity@example.com').last()).toBeVisible()
-  })
+      await page.reload()
+      await expect(page.getByText('companion2@example.com')).toBeVisible()
+      // Ticket 1/3 has no attendee_email of its own — it always shows the
+      // registration's own email instead, which must be unaffected by 2/3's
+      // edit. e2e-spots-integrity@example.com is a shared fixture used by
+      // other specs too, so scope to the last match (this test's own row,
+      // freshly created) rather than assuming it's unique on the page.
+      await expect(page.getByText('e2e-spots-integrity@example.com').last()).toBeVisible()
+    })
+  }
 })
