@@ -51,7 +51,8 @@ function branchUrl(siteUrl: string, branchSlug: string | undefined | null, path:
 // a fallback.
 async function resolveBranchSlug(branchId: string | null | undefined): Promise<string | null> {
   if (!branchId) return null
-  const { data } = await supabase.from('branches').select('slug').eq('id', branchId).maybeSingle()
+  const { data, error } = await supabase.from('branches').select('slug').eq('id', branchId).maybeSingle()
+  if (error) console.error('resolveBranchSlug: branches lookup failed', error.message)
   return data?.slug ?? null
 }
 
@@ -93,11 +94,12 @@ async function verifyApprovedPayment(paymentId: string | null | undefined): Prom
   const payment = await mpRes.json()
   if (payment.status !== 'approved' || !payment.external_reference) return null
 
-  const { data: pending } = await supabase
+  const { data: pending, error: pendingErr } = await supabase
     .from('pending_checkouts')
     .select('*')
     .eq('id', payment.external_reference)
     .maybeSingle()
+  if (pendingErr) console.error('verifyApprovedPayment: pending_checkouts lookup failed', pendingErr.message)
   if (!pending) return null
 
   return {
@@ -129,6 +131,21 @@ function formatEventDateTime(date: string | null, time: string | null): string {
 
 function qrPngUrl(token: string, size: number): string {
   return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${token}&bgcolor=ffffff&color=6b2737&margin=10`
+}
+
+// Every HTML email body interpolates values that ultimately trace back to
+// the request body (name, event/plan title, price display string) — and
+// this function is verify_jwt:false and reachable directly with the public
+// anon key (see verifyApprovedPayment above for the payment-side version of
+// this same problem). Without escaping, a crafted name/title could inject
+// arbitrary HTML/links into a real email sent from this app's own domain.
+function escapeHtml(value: unknown): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
 }
 
 function emailBase(title: string, body: string, ctaUrl: string, ctaLabel: string): string {
@@ -298,7 +315,7 @@ Deno.serve(async (req) => {
     if (type === 'welcome') {
       const html = emailBase(
         '¡Bienvenido/a!',
-        `<p style="color:#3d2b1f;line-height:1.7">Hola <strong>${name}</strong>,</p>
+        `<p style="color:#3d2b1f;line-height:1.7">Hola <strong>${escapeHtml(name)}</strong>,</p>
          <p style="color:#3d2b1f;line-height:1.7">Tu cuenta en Lo de Granados fue creada exitosamente. Ya podés explorar nuestras catas, cursos y el Club DeVinos.</p>`,
         siteUrl,
         'Ir al sitio',
@@ -330,7 +347,7 @@ Deno.serve(async (req) => {
       const html = emailBase(
         'Te asignaron un evento',
         `<p style="color:#3d2b1f;line-height:1.7">Hola,</p>
-         <p style="color:#3d2b1f;line-height:1.7">Te asignaron como host de <strong>${meta?.eventTitle ?? ''}</strong>${meta?.eventDate ? ` (${meta.eventDate})` : ''}. Vas a poder escanear las entradas desde el panel el día del evento.</p>`,
+         <p style="color:#3d2b1f;line-height:1.7">Te asignaron como host de <strong>${escapeHtml(meta?.eventTitle)}</strong>${meta?.eventDate ? ` (${escapeHtml(meta.eventDate)})` : ''}. Vas a poder escanear las entradas desde el panel el día del evento.</p>`,
         `${siteUrl}/admin`,
         'Ir al panel',
       )
@@ -366,22 +383,24 @@ Deno.serve(async (req) => {
       const ref = verified.ref
       const spots = Math.max(1, verified.spots)
 
-      const { data: eventRow } = await supabase
+      const { data: eventRow, error: eventErr } = await supabase
         .from('events')
         .select('title, date, time, location, branch_id, kind')
         .eq('id', ref)
         .maybeSingle()
+      if (eventErr) console.error('reservation: events lookup failed', eventErr.message)
       const isCata = eventRow?.kind !== 'curso'
 
       let registrationId: string | null = null
 
       if (paymentId) {
-        const { data: existing } = await supabase
+        const { data: existing, error: existingErr } = await supabase
           .from('registrations')
           .select('id, spots')
           .eq('event_id', ref)
           .eq('payment_id', paymentId)
           .maybeSingle()
+        if (existingErr) console.error('reservation: idempotency lookup failed', existingErr.message)
         if (existing) {
           if (!isCata) {
             // cursos never attach ticket PDFs to the email — just make sure
@@ -393,10 +412,11 @@ Deno.serve(async (req) => {
               headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             })
           }
-          const { count } = await supabase
+          const { count, error: countErr } = await supabase
             .from('tickets')
             .select('id', { count: 'exact', head: true })
             .eq('registration_id', existing.id)
+          if (countErr) console.error('reservation: ticket count lookup failed', countErr.message)
           if ((count ?? 0) >= (existing.spots ?? 1)) {
             return new Response(JSON.stringify({ ok: true, skipped: true }), {
               headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -442,8 +462,8 @@ Deno.serve(async (req) => {
         })
         const html = emailBase(
           'Inscripción confirmada',
-          `<p style="color:#3d2b1f;line-height:1.7">Hola <strong>${greetingName}</strong>,</p>
-           <p style="color:#3d2b1f;line-height:1.7">Tu inscripción al curso <strong>${eventTitle}</strong>${meta?.price ? ` por <strong>${meta.price}</strong>` : ''} fue confirmada. Te contactaremos con más detalles.</p>`,
+          `<p style="color:#3d2b1f;line-height:1.7">Hola <strong>${escapeHtml(greetingName)}</strong>,</p>
+           <p style="color:#3d2b1f;line-height:1.7">Tu inscripción al curso <strong>${escapeHtml(eventTitle)}</strong>${meta?.price ? ` por <strong>${escapeHtml(meta.price)}</strong>` : ''} fue confirmada. Te contactaremos con más detalles.</p>`,
           branchUrl(siteUrl, branchSlug, 'cursos'),
           'Ver cursos',
         )
@@ -461,7 +481,8 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
       }
-      const { data: tickets } = await supabase.from('tickets').select('token').eq('registration_id', registrationId)
+      const { data: tickets, error: ticketsErr } = await supabase.from('tickets').select('token').eq('registration_id', registrationId)
+      if (ticketsErr) console.error('reservation: tickets lookup for PDFs failed', ticketsErr.message)
       const tokensList = (tickets ?? []).map((t: { token: string }) => t.token)
 
       const attachments = await buildAllTicketPdfs(tokensList, eventTitle, dateTimeLabel, eventRow?.location ?? '')
@@ -469,8 +490,8 @@ Deno.serve(async (req) => {
       const spotsLabel = spots > 1 ? ` (${spots} entradas)` : ''
       const html = emailBase(
         'Reserva confirmada',
-        `<p style="color:#3d2b1f;line-height:1.7">Hola <strong>${greetingName}</strong>,</p>
-         <p style="color:#3d2b1f;line-height:1.7">Tu reserva para <strong>${eventTitle}</strong>${spotsLabel}${meta?.price ? ` por <strong>${meta.price}</strong>` : ''} fue confirmada. Te esperamos.</p>
+        `<p style="color:#3d2b1f;line-height:1.7">Hola <strong>${escapeHtml(greetingName)}</strong>,</p>
+         <p style="color:#3d2b1f;line-height:1.7">Tu reserva para <strong>${escapeHtml(eventTitle)}</strong>${spotsLabel}${meta?.price ? ` por <strong>${escapeHtml(meta.price)}</strong>` : ''} fue confirmada. Te esperamos.</p>
          ${detailsCard([
            ['Cuándo', dateTimeLabel],
            ['Dónde', eventRow?.location ?? ''],
@@ -499,11 +520,12 @@ Deno.serve(async (req) => {
 
       // Idempotency by payment_id
       if (paymentId) {
-        const { data: existing } = await supabase
+        const { data: existing, error: existingErr } = await supabase
           .from('subscriptions')
           .select('id')
           .eq('payment_id', paymentId)
           .maybeSingle()
+        if (existingErr) console.error('subscription: idempotency lookup failed', existingErr.message)
         if (existing) {
           return new Response(JSON.stringify({ ok: true, skipped: true }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -511,7 +533,8 @@ Deno.serve(async (req) => {
         }
       }
 
-      const { data: plan } = await supabase.from('plans').select('name, branch_id, price').eq('id', ref).single()
+      const { data: plan, error: planErr } = await supabase.from('plans').select('name, branch_id, price').eq('id', ref).single()
+      if (planErr) console.error('subscription: plan lookup failed', planErr.message)
 
       const { error: dbErr } = await supabase.from('subscriptions').insert({
         plan_id: ref,
@@ -538,8 +561,8 @@ Deno.serve(async (req) => {
 
       const html = emailBase(
         '¡Bienvenido/a al Club!',
-        `<p style="color:#3d2b1f;line-height:1.7">Hola <strong>${greetingName}</strong>,</p>
-         <p style="color:#3d2b1f;line-height:1.7">Tu suscripción al <strong>${planTitle}</strong>${meta?.price ? ` (${meta.price}/mes)` : ''} fue activada. Cada mes recibirás vinos seleccionados por nuestro sommelier.</p>`,
+        `<p style="color:#3d2b1f;line-height:1.7">Hola <strong>${escapeHtml(greetingName)}</strong>,</p>
+         <p style="color:#3d2b1f;line-height:1.7">Tu suscripción al <strong>${escapeHtml(planTitle)}</strong>${meta?.price ? ` (${escapeHtml(meta.price)}/mes)` : ''} fue activada. Cada mes recibirás vinos seleccionados por nuestro sommelier.</p>`,
         branchUrl(siteUrl, branchSlug, 'club'),
         'Ver mi Club',
       )

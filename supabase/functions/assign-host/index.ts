@@ -1,50 +1,22 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { createClient } from "jsr:@supabase/supabase-js@2"
+import { jsonResponse, handleOptions } from "../_shared/http.ts"
+import { getCaller, withRetry } from "../_shared/auth.ts"
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? ''
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
-
 const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
-function jsonResponse(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  })
-}
-
-// This project's GoTrue admin API throws AuthRetryableFetchError on
-// auth.admin.* calls intermittently (confirmed via direct repeated testing
-// in manage-staff — the identical call fails, then succeeds on retry with
-// nothing else changed). A short retry with backoff clears it every time
-// observed.
-async function withRetry<T>(fn: () => Promise<{ data: T; error: { message: string } | null }>, attempts = 3) {
-  let lastError: { message: string } | null = null
-  for (let i = 0; i < attempts; i++) {
-    const { data, error } = await fn()
-    if (!error) return data
-    lastError = error
-    if (i < attempts - 1) await new Promise((r) => setTimeout(r, 300 * (i + 1)))
-  }
-  throw lastError
-}
-
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
-  }
+  const opts = handleOptions(req)
+  if (opts) return opts
 
   try {
-    const jwt = (req.headers.get('Authorization') ?? '').replace('Bearer ', '')
-    const { data: { user: caller }, error: callerErr } = await admin.auth.getUser(jwt)
-    if (callerErr || !caller) {
-      return jsonResponse({ error: 'No autenticado' }, 401)
-    }
+    const callerResult = await getCaller(req, admin)
+    if ('response' in callerResult) return callerResult.response
+    const caller = callerResult.user
+
     const callerRole = caller.app_metadata?.role
     if (callerRole !== 'admin' && callerRole !== 'superadmin') {
       return jsonResponse({ error: 'No autorizado' }, 403)
@@ -68,7 +40,7 @@ Deno.serve(async (req) => {
     // what the client sent.
     let targetUser
     try {
-      targetUser = await withRetry(() => admin.auth.admin.getUserById(userId).then((r) => ({ data: r.data.user, error: r.error })))
+      targetUser = await withRetry(() => admin.auth.admin.getUserById(userId).then((r) => ({ data: r.data?.user ?? null, error: r.error })))
     } catch (e) {
       console.error('getUserById error:', e)
       return jsonResponse({ error: 'No pudimos verificar ese usuario' }, 500)
