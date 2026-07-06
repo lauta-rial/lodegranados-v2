@@ -17,10 +17,13 @@ export function MiCuenta() {
   if (!user) return null
 
   const avatarUrl = user.user_metadata?.avatar_url as string | undefined
+  // `||`, not `??` — full_name/name can be an empty string (see
+  // Navbar.tsx's identical fix), which isn't nullish, so `??` would keep
+  // it instead of falling through.
   const displayName =
-    user.user_metadata?.full_name ??
-    user.user_metadata?.name ??
-    user.email?.split('@')[0] ??
+    user.user_metadata?.full_name ||
+    user.user_metadata?.name ||
+    user.email?.split('@')[0] ||
     'Usuario'
 
   return (

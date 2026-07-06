@@ -42,6 +42,21 @@ export async function deleteUserByEmail(email: string): Promise<void> {
   if (!delRes.ok) throw new Error(`Failed to delete user: ${delRes.status} ${await delRes.text()}`)
 }
 
+// Same lookup as deleteUserByEmail's, without the delete — mi-cuenta.spec.ts
+// needs CHECKOUT_TEST's real auth.users id to seed a registration/enrollment
+// that will actually show up in ITS OWN MiCuenta (queried by user_id).
+export async function getUserIdByEmail(email: string): Promise<string | null> {
+  const key = requireServiceRoleKey()
+  const rpcRes = await fetch(`${SUPABASE_URL}/rest/v1/rpc/find_user_by_email`, {
+    method: 'POST',
+    headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ p_email: email }),
+  })
+  if (!rpcRes.ok) throw new Error(`Failed to look up user by email: ${rpcRes.status} ${await rpcRes.text()}`)
+  const rows = await rpcRes.json()
+  return rows?.[0]?.id ?? null
+}
+
 // Every REST helper below goes through this — one place for the
 // apikey/Authorization headers, the fetch call, and the error-on-non-ok
 // check, instead of each function repeating its own copy (which had already
@@ -101,11 +116,13 @@ export async function getRegistrationsCount(eventId: string): Promise<number | n
 
 // Direct writes to registrations/tickets-adjacent tables, bypassing the app
 // entirely — used to test that the DB triggers recalculate available_spots
-// correctly without needing a real MP purchase.
-export async function insertRegistration(eventId: string, spots: number): Promise<string> {
+// correctly without needing a real MP purchase. Optional userId lets
+// mi-cuenta.spec.ts seed a row that actually shows up in a real user's
+// MiCuenta (queried by user_id there, not by this hardcoded email).
+export async function insertRegistration(eventId: string, spots: number, userId?: string): Promise<string> {
   const res = await adminRequest('registrations', {
     method: 'POST', prefer: 'return=representation',
-    body: { event_id: eventId, spots, email: 'e2e-spots-integrity@example.com' },
+    body: { event_id: eventId, spots, email: 'e2e-spots-integrity@example.com', ...(userId ? { user_id: userId } : {}) },
     action: 'insert registration',
   })
   const [row] = await res.json()
@@ -124,10 +141,10 @@ export async function getCourseSpots(courseId: string): Promise<number> {
   return getAvailableSpots(courseId)
 }
 
-export async function insertEnrollment(courseId: string): Promise<string> {
+export async function insertEnrollment(courseId: string, userId?: string): Promise<string> {
   const res = await adminRequest('registrations', {
     method: 'POST', prefer: 'return=representation',
-    body: { event_id: courseId, spots: 1, status: 'enrolled', email: 'e2e-spots-integrity@example.com' },
+    body: { event_id: courseId, spots: 1, status: 'enrolled', email: 'e2e-spots-integrity@example.com', ...(userId ? { user_id: userId } : {}) },
     action: 'insert enrollment',
   })
   const [row] = await res.json()
@@ -338,4 +355,56 @@ export async function getRegistrationByEmail(eventId: string, email: string): Pr
   })
   const [row] = await res.json()
   return row ?? null
+}
+
+// --- Empresas / Newsletter / Sucursales / assign-host coverage helpers ---
+
+export async function getLatestInquiryByEmail(email: string): Promise<{ id: string } | null> {
+  const res = await adminRequest(`inquiries?email=eq.${encodeURIComponent(email)}&select=id&order=created_at.desc&limit=1`, {
+    action: 'read latest inquiry by email',
+  })
+  const [row] = await res.json()
+  return row ?? null
+}
+
+export async function deleteInquiry(id: string): Promise<void> {
+  await adminRequest(`inquiries?id=eq.${id}`, { method: 'DELETE', action: 'delete inquiry' })
+}
+
+// Safety-net cleanup — the UI-driven delete in admin-newsletter-crud.spec.ts
+// and public-pages.spec.ts's newsletter signup test should already remove
+// their own rows, but a test failing mid-way would otherwise leave a
+// throwaway subscriber behind indefinitely.
+export async function deleteNewsletterSubscriberByEmail(email: string): Promise<void> {
+  await adminRequest(`newsletter?email=eq.${encodeURIComponent(email)}`, { method: 'DELETE', action: 'delete newsletter subscriber' })
+}
+
+export async function getEventHostsForEvent(eventId: string): Promise<{ user_id: string }[]> {
+  const res = await adminRequest(`event_hosts?event_id=eq.${eventId}&select=user_id`, {
+    action: 'read event_hosts for event',
+  })
+  return res.json()
+}
+
+// admin-staff-crud.spec.ts assigns HOST_TEST to host-role.spec.ts's
+// UNASSIGNED_EVENT_ID to exercise assign-host, then must undo it with this —
+// host-role.spec.ts's RLS-negative-check depends on that event staying
+// genuinely unassigned for other test runs.
+export async function deleteEventHost(eventId: string, userId: string): Promise<void> {
+  await adminRequest(`event_hosts?event_id=eq.${eventId}&user_id=eq.${userId}`, { method: 'DELETE', action: 'delete event_hosts row' })
+}
+
+export async function getBranchBySlug(slug: string): Promise<{ id: string } | null> {
+  const res = await adminRequest(`branches?slug=eq.${encodeURIComponent(slug)}&select=id`, {
+    action: 'read branch by slug',
+  })
+  const [row] = await res.json()
+  return row ?? null
+}
+
+// Safety-net cleanup for admin-sucursales-crud.spec.ts — the test deletes
+// its own throwaway branch through the UI, but a failure mid-test (e.g. the
+// edit step throwing before delete runs) would otherwise leave it behind.
+export async function deleteBranchBySlug(slug: string): Promise<void> {
+  await adminRequest(`branches?slug=eq.${encodeURIComponent(slug)}`, { method: 'DELETE', action: 'delete branch by slug' })
 }

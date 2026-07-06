@@ -1,4 +1,5 @@
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect } from '@playwright/test'
+import { SUPERADMIN, loginAdmin } from './admin-helpers'
 
 // Fully automated — no MP, no manual card entry. Verifies branch scoping
 // across the whole admin panel: a branch admin should only ever see their
@@ -6,24 +7,12 @@ import { test, expect, type Page } from '@playwright/test'
 // "Sucursal" column. See memory: register-e2e-testing for how these test
 // admin accounts were created (registered normally, then role/branch_id
 // set directly in app_metadata via SQL — same as the real admin accounts).
-const SUPERADMIN = { email: 'whatsapp.assistance@gmail.com', password: 'Admin1234!' }
 const PICHINCHA_ADMIN = { email: 'whatsapp.assistance.v1+pichinchaadmin@gmail.com', password: 'TestResend123!' }
 const CENTRO_ADMIN = { email: 'whatsapp.assistance.v1+centroadmin@gmail.com', password: 'TestResend123!' }
 
 // Pichincha has real seeded data (events/courses/plans); Centro has none —
 // that asymmetry is what makes "does isolation actually hold" checkable.
 const KNOWN_PICHINCHA_EVENT_ID = '09e0bd67-0667-497d-a055-a0169817a207' // Cata de Malbec Mendocino
-
-async function loginAdmin(page: Page, creds: { email: string; password: string }) {
-  await page.context().clearCookies()
-  await page.goto('/admin')
-  await page.evaluate(() => localStorage.clear())
-  await page.goto('/admin')
-  await page.locator('input[type="email"]').fill(creds.email)
-  await page.locator('input[type="password"]').fill(creds.password)
-  await page.getByRole('button', { name: 'Ingresar' }).click()
-  await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
-}
 
 test.describe('admin branch scoping', () => {
   test('branch admin sees only their branch across catas/cursos/club, superadmin sees all', async ({ page }) => {

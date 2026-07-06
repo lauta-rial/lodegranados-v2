@@ -14,7 +14,11 @@ export function Navbar() {
   const navigate = useNavigate()
 
   const isAdmin = getUserRole(user) !== null
-  const displayName = user?.user_metadata?.full_name ?? user?.email?.split('@')[0] ?? 'Mi cuenta'
+  // `||`, not `??` — full_name can be an empty string (e.g. MiCuenta's
+  // ProfileForm saves `${first_name} ${last_name}`.trim(), which is "" for
+  // an account that never filled those in), and "" is not nullish so `??`
+  // would keep it instead of falling through to the email.
+  const displayName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Mi cuenta'
   const avatarUrl = user?.user_metadata?.avatar_url as string | undefined
 
   const prefix = branch ? `/${branch.slug}` : ''
