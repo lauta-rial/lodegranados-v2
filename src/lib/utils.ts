@@ -53,6 +53,24 @@ export function formatDate(dateStr: string) {
   }).format(new Date(dateStr))
 }
 
+// Club DeVinos redemption periods are one calendar month in Argentina time.
+// currentPeriod() is the 'YYYY-MM' key the redemption ledger and the scanner
+// both use — computed in AR time so a pickup late on the 31st doesn't roll
+// into next month for a UTC-ahead clock. Keep both sides on this one helper.
+export function currentPeriod() {
+  return new Date()
+    .toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' })
+    .slice(0, 7)
+}
+
+// 'YYYY-MM' → 'julio de 2026'. Day 1 at noon avoids any month-boundary shift
+// when the label is rendered in another timezone.
+export function periodLabel(period: string) {
+  const [y, m] = period.split('-').map(Number)
+  return new Intl.DateTimeFormat('es-AR', { month: 'long', year: 'numeric' })
+    .format(new Date(y, m - 1, 1, 12))
+}
+
 // For real timestamps (timestamptz columns like inquiries.created_at) — the
 // opposite reasoning applies: these are a genuine instant, so they DO need
 // converting to Argentina local time to show the right day/weekday to a

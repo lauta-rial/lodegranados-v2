@@ -1,11 +1,13 @@
 import { useState, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { CalendarDays, BookOpen, Wine, User, Check, Loader2 } from 'lucide-react'
+import { CalendarDays, BookOpen, Wine, User, Check, Clock, QrCode, Loader2 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { supabase } from '@/lib/supabase'
 import { useBranches } from '@/hooks/useBranches'
+import { useMySubscriptions } from '@/hooks/useMySubscriptions'
+import { ClubQr } from '@/components/ClubQr'
 import { Skeleton } from '@/components/ui/Skeleton'
-import { formatDate, formatPrice } from '@/lib/utils'
+import { formatDate, formatPrice, currentPeriod, periodLabel } from '@/lib/utils'
 import { Link } from 'react-router-dom'
 
 const field =
@@ -175,26 +177,11 @@ function ProfileForm({ user }: { user: NonNullable<ReturnType<typeof useAuth>['u
 }
 
 function SubscriptionSection({ userId }: { userId: string }) {
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['my-subscription', userId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('subscriptions')
-        .select('*, plans(name, emoji, price)')
-        .eq('user_id', userId)
-        .eq('status', 'active')
-        .maybeSingle()
-      if (error) throw error
-      return data
-    },
-  })
+  const { data: subs, isLoading, isError } = useMySubscriptions(userId)
   const { data: branches } = useBranches()
   const slugForId = (id: string | null | undefined) =>
     branches?.find((b) => b.id === id)?.slug ?? ''
   const firstBranch = branches?.[0]
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const plan = (data as any)?.plans
 
   return (
     <section>
@@ -204,24 +191,15 @@ function SubscriptionSection({ userId }: { userId: string }) {
       </div>
 
       {isLoading ? (
-        <Skeleton className="h-24 w-full rounded-2xl" />
+        <Skeleton className="h-28 w-full rounded-2xl" />
       ) : isError ? (
         <ErrorState label="No pudimos cargar tu suscripción." />
-      ) : data ? (
-        <Link to={`/${slugForId(data.branch_id)}/club/${data.plan_id}`} className="flex items-center justify-between rounded-2xl border border-[var(--color-wine)]/20 bg-[var(--color-wine)]/5 p-5 hover:border-[var(--color-wine)]/40 hover:shadow-sm transition-all">
-          <div className="flex items-center gap-3">
-            {plan?.emoji && <span className="text-2xl">{plan.emoji}</span>}
-            <div>
-              <p className="font-semibold text-[var(--color-dark)]">{plan?.name ?? 'Plan activo'}</p>
-              <p className="text-sm text-[var(--color-muted)]">
-                {plan?.price ? `${formatPrice(plan.price)}/mes` : ''} · desde {data.start_date ?? '—'}
-              </p>
-            </div>
-          </div>
-          <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
-            Activa
-          </span>
-        </Link>
+      ) : subs && subs.length > 0 ? (
+        <div className="space-y-3">
+          {subs.map((sub) => (
+            <SubscriptionCard key={sub.id} sub={sub} planHref={`/${slugForId(sub.branch_id)}/club/${sub.plan_id}`} />
+          ))}
+        </div>
       ) : (
         <EmptyState
           label="No tenés ninguna suscripción activa."
@@ -230,6 +208,65 @@ function SubscriptionSection({ userId }: { userId: string }) {
         />
       )}
     </section>
+  )
+}
+
+function SubscriptionCard({
+  sub,
+  planHref,
+}: {
+  sub: import('@/hooks/useMySubscriptions').MySubscription
+  planHref: string
+}) {
+  const [showQr, setShowQr] = useState(false)
+  const plan = sub.plans
+  const period = currentPeriod()
+  const redeemedThisMonth = sub.club_redemptions.some((r) => r.period === period)
+  const monthLabel = periodLabel(period)
+
+  return (
+    <div className="rounded-2xl border border-[var(--color-wine)]/20 bg-[var(--color-wine)]/5 overflow-hidden">
+      <div className="flex items-center justify-between p-5">
+        <Link to={planHref} className="flex flex-1 min-w-0 items-center gap-3 hover:opacity-80 transition-opacity">
+          {plan?.emoji && <span className="text-2xl">{plan.emoji}</span>}
+          <div className="min-w-0">
+            <p className="font-semibold text-[var(--color-dark)] truncate">{plan?.name ?? 'Plan activo'}</p>
+            <p className="text-sm text-[var(--color-muted)]">
+              {plan?.price ? `${formatPrice(plan.price)}/mes` : ''}
+              {sub.start_date ? ` · desde ${formatDate(sub.start_date)}` : ''}
+            </p>
+          </div>
+        </Link>
+        <span className="ml-3 shrink-0 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
+          Activa
+        </span>
+      </div>
+
+      {/* Monthly wines status + QR toggle */}
+      <div className="flex items-center justify-between gap-3 border-t border-[var(--color-wine)]/10 px-5 py-3">
+        {redeemedThisMonth ? (
+          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700">
+            <Check size={13} /> Vinos de <span className="capitalize">{monthLabel}</span> retirados
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700">
+            <Clock size={13} /> Vinos de <span className="capitalize">{monthLabel}</span> — pendientes
+          </span>
+        )}
+        <button
+          onClick={() => setShowQr((v) => !v)}
+          className="flex items-center gap-1.5 rounded-lg border border-[var(--color-parchment)] bg-white px-2.5 py-1 text-xs font-medium text-[var(--color-wine)] hover:bg-[var(--color-wine)]/5 transition-colors"
+        >
+          <QrCode size={13} /> {showQr ? 'Ocultar QR' : 'Ver QR'}
+        </button>
+      </div>
+
+      {showQr && (
+        <div className="border-t border-[var(--color-wine)]/10 bg-[var(--color-cream)] px-5 py-6">
+          <ClubQr token={sub.redeem_token} redemptions={sub.club_redemptions} />
+        </div>
+      )}
+    </div>
   )
 }
 

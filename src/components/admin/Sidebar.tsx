@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, CalendarDays, BookOpen, Users, MessageSquare, MapPin, Mail, UserCog, LogOut } from 'lucide-react'
+import { LayoutDashboard, CalendarDays, BookOpen, Users, QrCode, MessageSquare, MapPin, Mail, UserCog, LogOut } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/AuthContext'
 import { useAdmin } from '@/context/AdminContext'
@@ -9,6 +9,7 @@ const allLinks = [
   { to: '/admin/catas', icon: CalendarDays, label: 'Catas', end: false, superAdminOnly: false },
   { to: '/admin/cursos', icon: BookOpen, label: 'Cursos', end: false, superAdminOnly: false },
   { to: '/admin/club', icon: Users, label: 'Club', end: false, superAdminOnly: false },
+  { to: '/admin/club/scan', icon: QrCode, label: 'Canjes Club', end: false, superAdminOnly: false },
   { to: '/admin/consultas', icon: MessageSquare, label: 'Consultas', end: false, superAdminOnly: false },
   { to: '/admin/sucursales', icon: MapPin, label: 'Sucursales', end: false, superAdminOnly: true },
   { to: '/admin/newsletter', icon: Mail, label: 'Newsletter', end: false, superAdminOnly: true },

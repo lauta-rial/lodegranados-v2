@@ -7,6 +7,8 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
@@ -53,6 +55,38 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      club_redemptions: {
+        Row: {
+          id: string
+          period: string
+          redeemed_at: string
+          redeemed_by: string | null
+          subscription_id: string
+        }
+        Insert: {
+          id?: string
+          period: string
+          redeemed_at?: string
+          redeemed_by?: string | null
+          subscription_id: string
+        }
+        Update: {
+          id?: string
+          period?: string
+          redeemed_at?: string
+          redeemed_by?: string | null
+          subscription_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_redemptions_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       courses: {
         Row: {
@@ -112,7 +146,15 @@ export type Database = {
           total_spots?: number
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "courses_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       enrollments: {
         Row: {
@@ -148,76 +190,15 @@ export type Database = {
           updated_at?: string | null
           user_id?: string | null
         }
-        Relationships: []
-      }
-      events: {
-        Row: {
-          active: boolean | null
-          available_spots: number
-          branch_id: string | null
-          created_at: string | null
-          date: string
-          description: string | null
-          id: string
-          image_url: string | null
-          instructor_bio: string | null
-          instructor_name: string | null
-          kind: string
-          location: string | null
-          price: number | null
-          schedule: string | null
-          syllabus: Json | null
-          time: string | null
-          title: string
-          total_classes: number | null
-          total_spots: number
-          updated_at: string | null
-        }
-        Insert: {
-          active?: boolean | null
-          available_spots: number
-          branch_id?: string | null
-          created_at?: string | null
-          date: string
-          description?: string | null
-          id?: string
-          image_url?: string | null
-          instructor_bio?: string | null
-          instructor_name?: string | null
-          kind?: string
-          location?: string | null
-          price?: number | null
-          schedule?: string | null
-          syllabus?: Json | null
-          time?: string | null
-          title: string
-          total_classes?: number | null
-          total_spots: number
-          updated_at?: string | null
-        }
-        Update: {
-          active?: boolean | null
-          available_spots?: number
-          branch_id?: string | null
-          created_at?: string | null
-          date?: string
-          description?: string | null
-          id?: string
-          image_url?: string | null
-          instructor_bio?: string | null
-          instructor_name?: string | null
-          kind?: string
-          location?: string | null
-          price?: number | null
-          schedule?: string | null
-          syllabus?: Json | null
-          time?: string | null
-          title?: string
-          total_classes?: number | null
-          total_spots?: number
-          updated_at?: string | null
-        }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "enrollments_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       event_hosts: {
         Row: {
@@ -292,6 +273,83 @@ export type Database = {
           },
         ]
       }
+      events: {
+        Row: {
+          active: boolean | null
+          available_spots: number
+          branch_id: string | null
+          created_at: string | null
+          date: string
+          description: string | null
+          id: string
+          image_url: string | null
+          instructor_bio: string | null
+          instructor_name: string | null
+          kind: string
+          location: string | null
+          price: number | null
+          schedule: string | null
+          syllabus: Json | null
+          time: string | null
+          title: string
+          total_classes: number | null
+          total_spots: number
+          updated_at: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          available_spots: number
+          branch_id?: string | null
+          created_at?: string | null
+          date: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          instructor_bio?: string | null
+          instructor_name?: string | null
+          kind?: string
+          location?: string | null
+          price?: number | null
+          schedule?: string | null
+          syllabus?: Json | null
+          time?: string | null
+          title: string
+          total_classes?: number | null
+          total_spots: number
+          updated_at?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          available_spots?: number
+          branch_id?: string | null
+          created_at?: string | null
+          date?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          instructor_bio?: string | null
+          instructor_name?: string | null
+          kind?: string
+          location?: string | null
+          price?: number | null
+          schedule?: string | null
+          syllabus?: Json | null
+          time?: string | null
+          title?: string
+          total_classes?: number | null
+          total_spots?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "events_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       inquiries: {
         Row: {
           branch_id: string | null
@@ -323,7 +381,15 @@ export type Database = {
           status?: string
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "inquiries_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       newsletter: {
         Row: {
@@ -343,6 +409,48 @@ export type Database = {
           email?: string
           id?: string
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      pending_checkouts: {
+        Row: {
+          created_at: string | null
+          id: string
+          payer_email: string | null
+          payer_name: string | null
+          preference_id: string | null
+          price: number | null
+          processed_at: string | null
+          ref: string
+          spots: number | null
+          type: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          payer_email?: string | null
+          payer_name?: string | null
+          preference_id?: string | null
+          price?: number | null
+          processed_at?: string | null
+          ref: string
+          spots?: number | null
+          type: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          payer_email?: string | null
+          payer_name?: string | null
+          preference_id?: string | null
+          price?: number | null
+          processed_at?: string | null
+          ref?: string
+          spots?: number | null
+          type?: string
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -392,7 +500,15 @@ export type Database = {
           price?: number | null
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "plans_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       registrations: {
         Row: {
@@ -434,16 +550,29 @@ export type Database = {
           updated_at?: string | null
           user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "registrations_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       subscriptions: {
         Row: {
           branch_id: string | null
           created_at: string | null
+          email: string | null
           id: string
           monthly_price: number | null
+          name: string | null
           notes: string | null
+          payment_id: string | null
           plan_id: string | null
+          preapproval_id: string | null
+          redeem_token: string
           start_date: string | null
           status: string
           updated_at: string | null
@@ -452,10 +581,15 @@ export type Database = {
         Insert: {
           branch_id?: string | null
           created_at?: string | null
+          email?: string | null
           id?: string
           monthly_price?: number | null
+          name?: string | null
           notes?: string | null
+          payment_id?: string | null
           plan_id?: string | null
+          preapproval_id?: string | null
+          redeem_token?: string
           start_date?: string | null
           status?: string
           updated_at?: string | null
@@ -464,16 +598,36 @@ export type Database = {
         Update: {
           branch_id?: string | null
           created_at?: string | null
+          email?: string | null
           id?: string
           monthly_price?: number | null
+          name?: string | null
           notes?: string | null
+          payment_id?: string | null
           plan_id?: string | null
+          preapproval_id?: string | null
+          redeem_token?: string
           start_date?: string | null
           status?: string
           updated_at?: string | null
           user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "subscriptions_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscriptions_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       tickets: {
         Row: {
@@ -538,17 +692,52 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      get_event_hosts: {
-        Args: { p_event_id: string }
-        Returns: { id: string; user_id: string; email: string }[]
+      backfill_tickets_for_registration: {
+        Args: { p_event_id: string; p_registration_id: string; p_spots: number }
+        Returns: undefined
       }
-      get_staff: {
-        Args: Record<PropertyKey, never>
-        Returns: { id: string; email: string; role: string; branch_id: string | null; created_at: string }[]
+      backfill_tickets_for_session: {
+        Args: { p_event_id: string; p_session_id: string }
+        Returns: undefined
+      }
+      event_branch_id: { Args: { p_event_id: string }; Returns: string }
+      find_user_by_email: {
+        Args: { p_email: string }
+        Returns: {
+          app_metadata: Json
+          email: string
+          id: string
+        }[]
       }
       get_branch_hosts: {
         Args: { p_branch_id: string }
-        Returns: { id: string; email: string }[]
+        Returns: {
+          email: string
+          id: string
+        }[]
+      }
+      get_event_hosts: {
+        Args: { p_event_id: string }
+        Returns: {
+          email: string
+          id: string
+          user_id: string
+        }[]
+      }
+      get_staff: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          branch_id: string
+          created_at: string
+          email: string
+          id: string
+          role: string
+        }[]
+      }
+      is_host_of_event: { Args: { p_event_id: string }; Returns: boolean }
+      recalculate_event_spots: {
+        Args: { p_event_id: string }
+        Returns: undefined
       }
     }
     Enums: {
@@ -559,6 +748,129 @@ export type Database = {
     }
   }
 }
+
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+
+export type Tables<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
+
+export type TablesInsert<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
+
+export type TablesUpdate<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
+
+export type Enums<
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  public: {
+    Enums: {},
+  },
+} as const
 
 // Convenience aliases
 export type Branch = Database['public']['Tables']['branches']['Row']
@@ -571,3 +883,4 @@ export type NewsletterRow = Database['public']['Tables']['newsletter']['Row']
 export type Ticket = Database['public']['Tables']['tickets']['Row']
 export type EventSession = Database['public']['Tables']['event_sessions']['Row']
 export type EventHost = Database['public']['Tables']['event_hosts']['Row']
+export type ClubRedemption = Database['public']['Tables']['club_redemptions']['Row']

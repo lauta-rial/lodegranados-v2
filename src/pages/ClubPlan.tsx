@@ -6,7 +6,9 @@ import { supabase } from '@/lib/supabase'
 import { useBranch } from '@/context/BranchContext'
 import { useAuth } from '@/context/AuthContext'
 import { useSubscription } from '@/hooks/useSubscription'
+import { useMySubscriptions } from '@/hooks/useMySubscriptions'
 import { CheckoutModal } from '@/components/CheckoutModal'
+import { ClubQr } from '@/components/ClubQr'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { formatPrice } from '@/lib/utils'
 import { cn } from '@/lib/utils'
@@ -17,6 +19,7 @@ export function ClubPlan() {
   const branch = useBranch()
   const { user } = useAuth()
   const { subscribe, loading: checkoutLoading, error: subscribeError } = useSubscription()
+  const { data: mySubs } = useMySubscriptions(user?.id)
   const [modalOpen, setModalOpen] = useState(false)
   const [noPlanError, setNoPlanError] = useState<string | null>(null)
   const checkoutError = subscribeError ?? noPlanError
@@ -40,6 +43,9 @@ export function ClubPlan() {
 
   const features = Array.isArray(plan.features) ? (plan.features as string[]) : []
   const clubUrl = `/${branch?.slug ?? ''}/club`
+  // A member can hold one active sub per plan — if they already have THIS one,
+  // swap the checkout CTA for their QR instead of letting them buy it twice.
+  const activeSub = mySubs?.find((s) => s.plan_id === plan.id)
 
   function handleSuscribir() {
     if (!plan!.mp_plan_id) {
@@ -129,7 +135,7 @@ export function ClubPlan() {
           </div>
         </div>
 
-        {/* Right — CTA sticky */}
+        {/* Right — CTA sticky (or "already subscribed" + QR) */}
         <div className="lg:col-span-2">
           <div className="sticky top-24 rounded-2xl border border-[var(--color-parchment)] bg-white p-6 shadow-sm">
             <div className="flex items-center gap-3">
@@ -142,55 +148,75 @@ export function ClubPlan() {
               </div>
             </div>
 
-            <button
-              onClick={handleSuscribir}
-              disabled={checkoutLoading}
-              className={cn(
-                'mt-6 h-12 w-full rounded-full text-sm font-medium transition-colors',
-                'bg-[var(--color-wine)] text-white hover:bg-[var(--color-wine-dark)]',
-                'disabled:cursor-not-allowed disabled:opacity-60',
-              )}
-            >
-              {checkoutLoading ? 'Redirigiendo…' : `Suscribirme al ${plan.name}`}
-            </button>
+            {activeSub ? (
+              <div className="mt-6">
+                <div className="mb-5 flex items-center gap-2 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                  <Check size={16} className="shrink-0" />
+                  <span>Ya estás suscripto a este plan.</span>
+                </div>
+                <ClubQr token={activeSub.redeem_token} redemptions={activeSub.club_redemptions} size={180} />
+                <Link
+                  to="/mi-cuenta"
+                  className="mt-5 block text-center text-xs text-[var(--color-muted)] hover:text-[var(--color-dark)] transition-colors"
+                >
+                  Ver mi suscripción en Mi Cuenta
+                </Link>
+              </div>
+            ) : (
+              <>
+                <button
+                  onClick={handleSuscribir}
+                  disabled={checkoutLoading}
+                  className={cn(
+                    'mt-6 h-12 w-full rounded-full text-sm font-medium transition-colors',
+                    'bg-[var(--color-wine)] text-white hover:bg-[var(--color-wine-dark)]',
+                    'disabled:cursor-not-allowed disabled:opacity-60',
+                  )}
+                >
+                  {checkoutLoading ? 'Redirigiendo…' : `Suscribirme al ${plan.name}`}
+                </button>
 
-            {checkoutError && (
-              <p className="mt-2 text-xs text-red-600">{checkoutError}</p>
+                {checkoutError && (
+                  <p className="mt-2 text-xs text-red-600">{checkoutError}</p>
+                )}
+
+                <div className="mt-4 flex items-center justify-center gap-1.5 text-xs text-[var(--color-muted)]">
+                  <ShieldCheck size={13} />
+                  Pago seguro · Cancelá cuando quieras
+                </div>
+
+                <Link
+                  to={clubUrl}
+                  className="mt-4 block text-center text-xs text-[var(--color-muted)] hover:text-[var(--color-dark)] transition-colors"
+                >
+                  Ver todos los planes
+                </Link>
+              </>
             )}
-
-            <div className="mt-4 flex items-center justify-center gap-1.5 text-xs text-[var(--color-muted)]">
-              <ShieldCheck size={13} />
-              Pago seguro · Cancelá cuando quieras
-            </div>
-
-            <Link
-              to={clubUrl}
-              className="mt-4 block text-center text-xs text-[var(--color-muted)] hover:text-[var(--color-dark)] transition-colors"
-            >
-              Ver todos los planes
-            </Link>
           </div>
         </div>
       </div>
 
-      {/* Mobile sticky CTA */}
-      <div className="fixed bottom-0 left-0 right-0 border-t border-[var(--color-parchment)] bg-white/95 backdrop-blur-sm px-4 py-3 lg:hidden">
-        <div className="flex items-center justify-between">
-          {plan.price != null && (
-            <div>
-              <p className="font-display text-lg font-semibold text-[var(--color-wine)]">{formatPrice(plan.price)}</p>
-              <p className="text-xs text-[var(--color-muted)]">por mes</p>
-            </div>
-          )}
-          <button
-            onClick={handleSuscribir}
-            disabled={checkoutLoading}
-            className="h-11 rounded-full bg-[var(--color-wine)] px-6 text-sm font-medium text-white disabled:opacity-60"
-          >
-            {checkoutLoading ? 'Redirigiendo…' : 'Suscribirme'}
-          </button>
+      {/* Mobile sticky CTA — hidden once subscribed (the QR lives in the card above) */}
+      {!activeSub && (
+        <div className="fixed bottom-0 left-0 right-0 border-t border-[var(--color-parchment)] bg-white/95 backdrop-blur-sm px-4 py-3 lg:hidden">
+          <div className="flex items-center justify-between">
+            {plan.price != null && (
+              <div>
+                <p className="font-display text-lg font-semibold text-[var(--color-wine)]">{formatPrice(plan.price)}</p>
+                <p className="text-xs text-[var(--color-muted)]">por mes</p>
+              </div>
+            )}
+            <button
+              onClick={handleSuscribir}
+              disabled={checkoutLoading}
+              className="h-11 rounded-full bg-[var(--color-wine)] px-6 text-sm font-medium text-white disabled:opacity-60"
+            >
+              {checkoutLoading ? 'Redirigiendo…' : 'Suscribirme'}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       <CheckoutModal
         open={modalOpen}
