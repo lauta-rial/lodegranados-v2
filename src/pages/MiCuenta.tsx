@@ -246,11 +246,11 @@ function SubscriptionCard({
       <div className="flex items-center justify-between gap-3 border-t border-[var(--color-wine)]/10 px-5 py-3">
         {redeemedThisMonth ? (
           <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700">
-            <Check size={13} /> Vinos de <span className="capitalize">{monthLabel}</span> retirados
+            <Check size={13} /> Vinos de {monthLabel} retirados
           </span>
         ) : (
           <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700">
-            <Clock size={13} /> Vinos de <span className="capitalize">{monthLabel}</span> — pendientes
+            <Clock size={13} /> Vinos de {monthLabel} — pendientes
           </span>
         )}
         <button

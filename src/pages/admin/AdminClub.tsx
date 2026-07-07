@@ -8,7 +8,7 @@ import { ImageUpload } from '@/components/admin/ImageUpload'
 import { useAdmin } from '@/context/AdminContext'
 import { StatusBadge } from './AdminDashboard'
 import { Skeleton } from '@/components/ui/Skeleton'
-import { formatPrice } from '@/lib/utils'
+import { formatPrice, currentPeriod, periodLabel } from '@/lib/utils'
 import type { Plan, Subscription } from '@/types/database'
 
 type Tab = 'plans' | 'subscriptions'
@@ -220,14 +220,26 @@ function PlanModal({ open, plan, branchId, onClose, onSaved }: { open: boolean; 
   )
 }
 
+type SubscriptionRow = Subscription & {
+  plan_name: string
+  branch_name: string
+  subscriber: string
+  redeemed_this_month: boolean
+}
+
 function SubscriptionsTab() {
   const [statusFilter, setStatusFilter] = useState('all')
   const { branchId, isSuperAdmin } = useAdmin()
+  const period = currentPeriod()
+  const monthLabel = periodLabel(period)
 
-  const { data, isLoading } = useQuery<(Subscription & { plan_name: string; branch_name: string })[]>({
-    queryKey: ['admin-subscriptions', statusFilter, branchId],
+  const { data, isLoading } = useQuery<SubscriptionRow[]>({
+    queryKey: ['admin-subscriptions', statusFilter, branchId, period],
     queryFn: async () => {
-      let q = supabase.from('subscriptions').select('*, plans(name), branches(name)').order('created_at', { ascending: false })
+      let q = supabase
+        .from('subscriptions')
+        .select('*, plans(name), branches(name), club_redemptions(period)')
+        .order('created_at', { ascending: false })
       if (statusFilter !== 'all') q = q.eq('status', statusFilter)
       if (branchId) q = q.eq('branch_id', branchId)
       const { data, error } = await q
@@ -237,13 +249,20 @@ function SubscriptionsTab() {
         ...s,
         plan_name: s.plans?.name ?? '—',
         branch_name: s.branches?.name ?? '—',
+        subscriber: s.name || s.email || '—',
+        redeemed_this_month: (s.club_redemptions ?? []).some((r: { period: string }) => r.period === period),
       }))
     },
   })
 
+  // Retiro only makes sense for active memberships — a cancelled/paused sub
+  // isn't "pending pickup", so it's excluded from both the badge and the tally.
+  const activeCount = (data ?? []).filter((s) => s.status === 'active').length
+  const redeemedCount = (data ?? []).filter((s) => s.status === 'active' && s.redeemed_this_month).length
+
   return (
     <>
-      <div className="mb-4 flex items-center gap-3">
+      <div className="mb-4 flex flex-wrap items-center gap-3">
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
           className="h-9 rounded-lg border border-[var(--color-parchment)] bg-white px-3 text-sm text-[var(--color-dark)] focus:outline-none focus:border-[var(--color-wine)]">
           <option value="all">Todos los estados</option>
@@ -252,6 +271,12 @@ function SubscriptionsTab() {
           <option value="cancelled">Cancelada</option>
           <option value="pending">Pendiente</option>
         </select>
+        {!isLoading && data && data.length > 0 && (
+          <p className="text-sm text-[var(--color-muted)]">
+            <span className="font-medium text-[var(--color-dark)]">{activeCount}</span> suscriptor{activeCount === 1 ? '' : 'es'} activo{activeCount === 1 ? '' : 's'} · retiro de {monthLabel}:{' '}
+            <span className="font-medium text-emerald-700">{redeemedCount}</span> de {activeCount}
+          </p>
+        )}
       </div>
 
       <div className="rounded-xl border border-[var(--color-parchment)] bg-white overflow-hidden">
@@ -263,21 +288,27 @@ function SubscriptionsTab() {
           <table className="w-full text-sm">
             <thead className="border-b border-[var(--color-parchment)] bg-[var(--color-cream)]">
               <tr>
+                <th className="px-4 py-3 text-left font-medium text-[var(--color-muted)]">Suscriptor</th>
                 <th className="px-4 py-3 text-left font-medium text-[var(--color-muted)]">Plan</th>
                 {isSuperAdmin && <th className="px-4 py-3 text-left font-medium text-[var(--color-muted)]">Sucursal</th>}
                 <th className="px-4 py-3 text-left font-medium text-[var(--color-muted)]">Precio</th>
                 <th className="px-4 py-3 text-left font-medium text-[var(--color-muted)]">Inicio</th>
                 <th className="px-4 py-3 text-left font-medium text-[var(--color-muted)]">Estado</th>
+                <th className="px-4 py-3 text-left font-medium text-[var(--color-muted)]">
+                  Retiro {monthLabel}
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--color-parchment)]">
               {data.map((s) => (
                 <tr key={s.id} className="hover:bg-[var(--color-cream)]/50">
+                  <td className="px-4 py-3 text-[var(--color-dark)]">{s.subscriber}</td>
                   <td className="px-4 py-3 font-medium text-[var(--color-dark)]">{s.plan_name}</td>
                   {isSuperAdmin && <td className="px-4 py-3 text-[var(--color-dark-muted)]">{s.branch_name}</td>}
                   <td className="px-4 py-3 text-[var(--color-dark-muted)]">{s.monthly_price ? formatPrice(s.monthly_price) : '—'}</td>
                   <td className="px-4 py-3 text-[var(--color-dark-muted)]">{s.start_date ?? '—'}</td>
                   <td className="px-4 py-3"><StatusBadge status={s.status} /></td>
+                  <td className="px-4 py-3"><RedemptionBadge active={s.status === 'active'} redeemed={s.redeemed_this_month} /></td>
                 </tr>
               ))}
             </tbody>
@@ -285,5 +316,16 @@ function SubscriptionsTab() {
         )}
       </div>
     </>
+  )
+}
+
+// Pickup state for the current month. Only active memberships get a
+// pending/done badge — everything else is "—" (no pickup is expected).
+function RedemptionBadge({ active, redeemed }: { active: boolean; redeemed: boolean }) {
+  if (!active) return <span className="text-[var(--color-muted)]">—</span>
+  return redeemed ? (
+    <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">Retirado</span>
+  ) : (
+    <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">Pendiente</span>
   )
 }
