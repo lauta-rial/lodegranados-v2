@@ -1,6 +1,7 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, Pencil, Trash2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, QrCode } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Modal } from '@/components/admin/Modal'
 import { FormField, FormActions, fieldClass } from '@/components/admin/AdminFormField'
@@ -23,14 +24,24 @@ export function AdminClub() {
         <p className="mt-1 text-sm text-[var(--color-muted)]">Planes y suscripciones</p>
       </div>
 
-      <div className="mb-6 flex gap-1 rounded-xl border border-[var(--color-parchment)] bg-white p-1 w-fit">
-        {(['plans', 'subscriptions'] as Tab[]).map((t) => (
-          <button key={t} onClick={() => setTab(t)}
-            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${tab === t ? 'bg-[var(--color-wine)] text-white' : 'text-[var(--color-dark-muted)] hover:text-[var(--color-dark)]'}`}
-          >
-            {t === 'plans' ? 'Planes' : 'Suscripciones'}
-          </button>
-        ))}
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex gap-1 rounded-xl border border-[var(--color-parchment)] bg-white p-1 w-fit">
+          {(['plans', 'subscriptions'] as Tab[]).map((t) => (
+            <button key={t} onClick={() => setTab(t)}
+              className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${tab === t ? 'bg-[var(--color-wine)] text-white' : 'text-[var(--color-dark-muted)] hover:text-[var(--color-dark)]'}`}
+            >
+              {t === 'plans' ? 'Planes' : 'Suscripciones'}
+            </button>
+          ))}
+        </div>
+
+        {/* Opens the camera scanner for Club wine pickups (was a nav entry). */}
+        <Link
+          to="/admin/club/scan"
+          className="inline-flex h-9 items-center gap-2 rounded-lg border border-[var(--color-parchment)] bg-white px-4 text-sm font-medium text-[var(--color-wine)] hover:bg-[var(--color-wine)]/5 transition-colors"
+        >
+          <QrCode size={15} /> Scanner
+        </Link>
       </div>
 
       {tab === 'plans' ? <PlansTab /> : <SubscriptionsTab />}
