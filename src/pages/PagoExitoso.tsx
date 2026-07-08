@@ -46,7 +46,7 @@ export function PagoExitoso() {
       processed.current = true
       const raw = sessionStorage.getItem('mp_checkout')
       sessionStorage.removeItem('mp_checkout')
-      let cached: { payerName?: string; payerEmail?: string; branchSlug?: string } = {}
+      let cached: { payerName?: string; payerEmail?: string; branchSlug?: string; branchId?: string } = {}
       try { cached = raw ? JSON.parse(raw) : {} } catch { /* best-effort */ }
 
       supabase.functions.invoke('send-email', {
@@ -58,7 +58,7 @@ export function PagoExitoso() {
           payerEmail: cached.payerEmail,
           to: cached.payerEmail,
           name: cached.payerName || cached.payerEmail?.split('@')[0],
-          data: { branchSlug: cached.branchSlug, siteUrl: window.location.origin },
+          data: { branchId: cached.branchId, branchSlug: cached.branchSlug, siteUrl: window.location.origin },
         },
       })
       return

@@ -1,15 +1,14 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { createClient } from "jsr:@supabase/supabase-js@2"
+import { getBranchMp, decodeSubRef } from "../_shared/mp.ts"
 
-const MP_ACCESS_TOKEN = Deno.env.get('MP_ACCESS_TOKEN') ?? ''
-const MP_WEBHOOK_SECRET = Deno.env.get('MP_WEBHOOK_SECRET') ?? ''
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? ''
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
-async function validateSignature(req: Request, paymentId: string | number): Promise<boolean> {
-  if (!MP_WEBHOOK_SECRET) return false // fail closed if secret not configured
+async function validateSignature(req: Request, resourceId: string | number, secret: string): Promise<boolean> {
+  if (!secret) return false // fail closed if secret not configured
 
   const signature = req.headers.get('x-signature') ?? ''
   const requestId = req.headers.get('x-request-id') ?? ''
@@ -24,11 +23,11 @@ async function validateSignature(req: Request, paymentId: string | number): Prom
   const v1 = parts['v1']
   if (!ts || !v1) return false
 
-  const manifest = `id:${paymentId};request-id:${requestId};ts:${ts}`
+  const manifest = `id:${resourceId};request-id:${requestId};ts:${ts}`
   const encoder = new TextEncoder()
   const key = await crypto.subtle.importKey(
     'raw',
-    encoder.encode(MP_WEBHOOK_SECRET),
+    encoder.encode(secret),
     { name: 'HMAC', hash: 'SHA-256' },
     false,
     ['sign'],
@@ -45,14 +44,13 @@ async function validateSignature(req: Request, paymentId: string | number): Prom
 // authorized, paused, cancelled). 'authorized' is forwarded to send-email —
 // same idempotent activation path PagoExitoso.tsx uses on the browser
 // redirect, a backup in case the user closes their browser right after
-// authorizing, before that redirect's JS runs. 'cancelled'/'paused' are
-// synced directly here: there's no untrusted-caller equivalent for "mark
-// this subscription cancelled" the way there is for "activate a
-// subscription" (nothing legitimate ever needs to claim that from the
-// browser), so this doesn't need the same re-verify-in-send-email pattern.
-async function handleSubscriptionPreapproval(preapprovalId: string) {
+// authorizing, before that redirect's JS runs. The branch + user come from the
+// preapproval's external_reference (stamped by create-mp-subscription), since
+// the notification itself carries no such context. 'cancelled'/'paused' are
+// synced directly here.
+async function handleSubscriptionPreapproval(preapprovalId: string, accessToken: string, siteUrl: string) {
   const mpRes = await fetch(`https://api.mercadopago.com/preapproval/${preapprovalId}`, {
-    headers: { Authorization: `Bearer ${MP_ACCESS_TOKEN}` },
+    headers: { Authorization: `Bearer ${accessToken}` },
   })
   if (!mpRes.ok) {
     console.error('mp-webhook: preapproval fetch failed', await mpRes.text())
@@ -61,6 +59,7 @@ async function handleSubscriptionPreapproval(preapprovalId: string) {
   const preapproval = await mpRes.json()
 
   if (preapproval.status === 'authorized') {
+    const { branchId, userId } = decodeSubRef(preapproval.external_reference)
     const emailRes = await fetch(`${SUPABASE_URL}/functions/v1/send-email`, {
       method: 'POST',
       headers: {
@@ -70,8 +69,9 @@ async function handleSubscriptionPreapproval(preapprovalId: string) {
       body: JSON.stringify({
         type: 'subscription',
         preapprovalId,
+        userId,
         to: preapproval.payer_email ?? '',
-        data: { siteUrl: Deno.env.get('SITE_URL') ?? 'https://lodegranados-v2-chi.vercel.app' },
+        data: { branchId, siteUrl },
       }),
     })
     if (!emailRes.ok) console.error('mp-webhook: send-email (subscription) error:', await emailRes.text())
@@ -87,20 +87,17 @@ async function handleSubscriptionPreapproval(preapprovalId: string) {
   }
 }
 
-// Fired once per recurring charge (roughly monthly, per subscriber) —
-// always forwarded to send-email, which independently re-verifies the
-// authorized_payment against MP before sending a receipt (same
-// defense-in-depth as the 'payment'/'subscription' paths: this webhook's
-// signature check gates that *a* notification is genuine, not that this
-// specific payment record still says what it said a moment ago).
-async function handleSubscriptionAuthorizedPayment(authorizedPaymentId: string) {
+// Fired once per recurring charge (roughly monthly, per subscriber) — always
+// forwarded to send-email, which independently re-verifies the
+// authorized_payment against MP before sending a receipt.
+async function handleSubscriptionAuthorizedPayment(authorizedPaymentId: string, branchId: string | null, siteUrl: string) {
   const emailRes = await fetch(`${SUPABASE_URL}/functions/v1/send-email`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ type: 'subscription_charged', authorizedPaymentId }),
+    body: JSON.stringify({ type: 'subscription_charged', authorizedPaymentId, data: { branchId, siteUrl } }),
   })
   if (!emailRes.ok) console.error('mp-webhook: send-email (subscription_charged) error:', await emailRes.text())
 }
@@ -111,6 +108,15 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // Which branch's MercadoPago account sent this notification. Each branch
+    // that loads its own MP credentials configures its webhook URL with
+    // ?branch=<id>; without it (the winery's shared account) we fall back to
+    // the global token/secret. The branch decides which secret verifies the
+    // signature and which token fetches the resource.
+    const branchQ = new URL(req.url).searchParams.get('branch')
+    const { accessToken, webhookSecret } = await getBranchMp(supabase, branchQ)
+    const siteUrl = Deno.env.get('SITE_URL') ?? 'https://lodegranados-v2-chi.vercel.app'
+
     const body = await req.json()
     const { type, data } = body
 
@@ -121,19 +127,19 @@ Deno.serve(async (req) => {
     // The HMAC manifest is `id:{data.id};request-id:...;ts:...` regardless
     // of topic — MP uses the same signature scheme for payment, preapproval,
     // and authorized_payment notifications alike.
-    const valid = await validateSignature(req, data.id)
+    const valid = await validateSignature(req, data.id, webhookSecret)
     if (!valid) {
       console.warn('Invalid webhook signature for', type, data.id)
       return new Response('unauthorized', { status: 401 })
     }
 
     if (type === 'subscription_preapproval') {
-      await handleSubscriptionPreapproval(String(data.id))
+      await handleSubscriptionPreapproval(String(data.id), accessToken, siteUrl)
       return new Response('ok', { status: 200 })
     }
 
     if (type === 'subscription_authorized_payment') {
-      await handleSubscriptionAuthorizedPayment(String(data.id))
+      await handleSubscriptionAuthorizedPayment(String(data.id), branchQ, siteUrl)
       return new Response('ok', { status: 200 })
     }
 
@@ -143,7 +149,7 @@ Deno.serve(async (req) => {
 
     // Fetch payment details from MP
     const mpRes = await fetch(`https://api.mercadopago.com/v1/payments/${data.id}`, {
-      headers: { Authorization: `Bearer ${MP_ACCESS_TOKEN}` },
+      headers: { Authorization: `Bearer ${accessToken}` },
     })
 
     if (!mpRes.ok) {
@@ -181,10 +187,8 @@ Deno.serve(async (req) => {
     // 'event' and 'course' both land on 'reservation' — registrations
     // absorbed enrollments, and events absorbed courses (kind: 'cata'|'curso'),
     // so send-email's reservation branch handles both by looking at the
-    // event's own kind. 'plan' can't reach this 'payment' handler anymore —
-    // create-mp-preference rejects type:'plan' outright, so pending_checkouts
-    // never gets one; Club subscriptions go through
-    // handleSubscriptionPreapproval above instead.
+    // event's own kind. 'plan' can't reach this 'payment' handler — Club
+    // subscriptions go through handleSubscriptionPreapproval above instead.
     const emailRes = await fetch(`${SUPABASE_URL}/functions/v1/send-email`, {
       method: 'POST',
       headers: {
@@ -204,7 +208,7 @@ Deno.serve(async (req) => {
           spots: pending.spots ?? 1,
           price: pending.price ? `$${(pending.price).toLocaleString('es-AR')}` : undefined,
           priceAmount: pending.price ?? null,
-          siteUrl: Deno.env.get('SITE_URL') ?? 'https://lodegranados-v2-chi.vercel.app',
+          siteUrl,
         },
       }),
     })

@@ -13,7 +13,7 @@ import type { Plan } from '@/types/database'
 
 export function Club() {
   const branch = useBranch()
-  const { data: plans, isLoading, error } = usePlans(branch?.id)
+  const { data: plans, isLoading, error } = usePlans()
   const waUrl = getWhatsAppUrl(branch?.phone)
 
   return (
@@ -40,7 +40,7 @@ export function Club() {
         {!isLoading && !error && plans && plans.length > 0 && (
           <div className="mx-auto max-w-3xl grid grid-cols-1 gap-6 sm:grid-cols-2">
             {plans.map((plan) => (
-              <PlanCard key={plan.id} plan={plan} branchSlug={branch?.slug ?? ''} />
+              <PlanCard key={plan.id} plan={plan} branchSlug={branch?.slug ?? ''} branchId={branch?.id ?? ''} />
             ))}
           </div>
         )}
@@ -67,7 +67,7 @@ export function Club() {
   )
 }
 
-function PlanCard({ plan, branchSlug }: { plan: Plan; branchSlug: string }) {
+function PlanCard({ plan, branchSlug, branchId }: { plan: Plan; branchSlug: string; branchId: string }) {
   const features = Array.isArray(plan.features) ? (plan.features as string[]) : []
   const { user } = useAuth()
   const { subscribe, loading, error: subscribeError } = useSubscription()
@@ -76,23 +76,23 @@ function PlanCard({ plan, branchSlug }: { plan: Plan; branchSlug: string }) {
   const error = subscribeError ?? noPlanError
 
   function handleSuscribir() {
-    if (!plan.mp_plan_id) {
+    if (plan.price == null) {
       setNoPlanError('Este plan no está disponible para suscripción en este momento.')
       return
     }
     if (user) {
-      subscribe({ planId: plan.id, mpPlanId: plan.mp_plan_id, planName: plan.name, price: plan.price ?? 0 })
+      subscribe({ planId: plan.id, planName: plan.name, price: plan.price, branchId })
     } else {
       setModalOpen(true)
     }
   }
 
   function handleModalConfirm(name: string, email: string) {
-    if (!plan.mp_plan_id) {
+    if (plan.price == null) {
       setNoPlanError('Este plan no está disponible para suscripción en este momento.')
       return
     }
-    subscribe({ planId: plan.id, mpPlanId: plan.mp_plan_id, planName: plan.name, price: plan.price ?? 0, payerName: name, payerEmail: email })
+    subscribe({ planId: plan.id, planName: plan.name, price: plan.price, branchId, payerName: name, payerEmail: email })
   }
 
   return (

@@ -458,7 +458,6 @@ export type Database = {
         Row: {
           active: boolean | null
           badge: string | null
-          branch_id: string | null
           created_at: string | null
           emoji: string | null
           features: Json | null
@@ -473,7 +472,6 @@ export type Database = {
         Insert: {
           active?: boolean | null
           badge?: string | null
-          branch_id?: string | null
           created_at?: string | null
           emoji?: string | null
           features?: Json | null
@@ -488,7 +486,6 @@ export type Database = {
         Update: {
           active?: boolean | null
           badge?: string | null
-          branch_id?: string | null
           created_at?: string | null
           emoji?: string | null
           features?: Json | null
@@ -500,15 +497,7 @@ export type Database = {
           price?: number | null
           updated_at?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "plans_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       registrations: {
         Row: {

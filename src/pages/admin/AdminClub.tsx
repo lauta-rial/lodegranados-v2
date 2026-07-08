@@ -38,22 +38,19 @@ export function AdminClub() {
   )
 }
 
-type PlanWithBranch = Plan & { branches: { name: string } | null }
-
 function PlansTab() {
   const qc = useQueryClient()
-  const { branchId, isSuperAdmin } = useAdmin()
+  const { isSuperAdmin } = useAdmin()
   const [modal, setModal] = useState<{ open: boolean; plan?: Plan }>({ open: false })
 
-  const { data: plans, isLoading } = useQuery<PlanWithBranch[]>({
-    queryKey: ['admin-plans', branchId],
+  // Plans are company-wide now — every admin sees the same catalogue,
+  // superadmin-only to edit.
+  const { data: plans, isLoading } = useQuery<Plan[]>({
+    queryKey: ['admin-plans'],
     queryFn: async () => {
-      let q = supabase.from('plans').select('*, branches(name)').order('price', { ascending: true })
-      if (branchId) q = q.eq('branch_id', branchId)
-      const { data, error } = await q
+      const { data, error } = await supabase.from('plans').select('*').order('price', { ascending: true })
       if (error) throw error
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return (data ?? []) as any as PlanWithBranch[]
+      return data ?? []
     },
   })
 
@@ -70,12 +67,19 @@ function PlansTab() {
 
   return (
     <>
-      <div className="mb-4 flex justify-end">
-        <button onClick={() => setModal({ open: true })}
-          className="inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--color-wine)] px-4 text-sm font-medium text-white hover:bg-[var(--color-wine-dark)] transition-colors">
-          <Plus size={15} /> Nuevo plan
-        </button>
-      </div>
+      {/* Plans are company-wide now — only a superadmin creates/edits them. */}
+      {isSuperAdmin ? (
+        <div className="mb-4 flex justify-end">
+          <button onClick={() => setModal({ open: true })}
+            className="inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--color-wine)] px-4 text-sm font-medium text-white hover:bg-[var(--color-wine-dark)] transition-colors">
+            <Plus size={15} /> Nuevo plan
+          </button>
+        </div>
+      ) : (
+        <p className="mb-4 text-sm text-[var(--color-muted)]">
+          Los planes del Club son globales y solo los gestiona el superadmin. Acá los ves en modo lectura.
+        </p>
+      )}
 
       <div className="rounded-xl border border-[var(--color-parchment)] bg-white overflow-hidden">
         {isLoading ? (
@@ -87,27 +91,27 @@ function PlansTab() {
             <thead className="border-b border-[var(--color-parchment)] bg-[var(--color-cream)]">
               <tr>
                 <th className="px-4 py-3 text-left font-medium text-[var(--color-muted)]">Plan</th>
-                {isSuperAdmin && <th className="px-4 py-3 text-left font-medium text-[var(--color-muted)]">Sucursal</th>}
                 <th className="px-4 py-3 text-left font-medium text-[var(--color-muted)]">Precio</th>
                 <th className="px-4 py-3 text-left font-medium text-[var(--color-muted)]">Destacado</th>
                 <th className="px-4 py-3 text-left font-medium text-[var(--color-muted)]">Estado</th>
-                <th className="px-4 py-3" />
+                {isSuperAdmin && <th className="px-4 py-3" />}
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--color-parchment)]">
               {plans.map((p) => (
                 <tr key={p.id} className="hover:bg-[var(--color-cream)]/50">
                   <td className="px-4 py-3 font-medium text-[var(--color-dark)]">{p.emoji} {p.name}</td>
-                  {isSuperAdmin && <td className="px-4 py-3 text-[var(--color-dark-muted)]">{p.branches?.name ?? '—'}</td>}
                   <td className="px-4 py-3 text-[var(--color-dark-muted)]">{p.price ? formatPrice(p.price) : '—'}/mes</td>
                   <td className="px-4 py-3">{p.highlighted ? <StatusBadge status="active" /> : '—'}</td>
                   <td className="px-4 py-3"><StatusBadge status={p.active ? 'active' : 'cancelled'} /></td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-end gap-2">
-                      <button onClick={() => setModal({ open: true, plan: p })} className="rounded p-1 text-[var(--color-muted)] hover:text-[var(--color-dark)] transition-colors"><Pencil size={14} /></button>
-                      <button onClick={() => handleDelete(p.id)} className="rounded p-1 text-[var(--color-muted)] hover:text-red-600 transition-colors"><Trash2 size={14} /></button>
-                    </div>
-                  </td>
+                  {isSuperAdmin && (
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-2">
+                        <button onClick={() => setModal({ open: true, plan: p })} className="rounded p-1 text-[var(--color-muted)] hover:text-[var(--color-dark)] transition-colors"><Pencil size={14} /></button>
+                        <button onClick={() => handleDelete(p.id)} className="rounded p-1 text-[var(--color-muted)] hover:text-red-600 transition-colors"><Trash2 size={14} /></button>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -118,7 +122,6 @@ function PlansTab() {
       <PlanModal
         open={modal.open}
         plan={modal.plan}
-        branchId={branchId}
         onClose={() => setModal({ open: false })}
         onSaved={() => {
           setModal({ open: false })
@@ -130,8 +133,7 @@ function PlansTab() {
   )
 }
 
-function PlanModal({ open, plan, branchId, onClose, onSaved }: { open: boolean; plan?: Plan; branchId: string | null; onClose: () => void; onSaved: () => void }) {
-  const { isSuperAdmin } = useAdmin()
+function PlanModal({ open, plan, onClose, onSaved }: { open: boolean; plan?: Plan; onClose: () => void; onSaved: () => void }) {
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState({
     name: plan?.name ?? '',
@@ -141,24 +143,12 @@ function PlanModal({ open, plan, branchId, onClose, onSaved }: { open: boolean; 
     highlighted: plan?.highlighted ?? false,
     features: Array.isArray(plan?.features) ? (plan.features as string[]).join('\n') : '',
     image_url: plan?.image_url ?? '',
-    branch_id: plan?.branch_id ?? '',
     active: plan?.active ?? true,
-  })
-
-  const { data: branches } = useQuery<{ id: string; name: string }[]>({
-    queryKey: ['branches-list'],
-    queryFn: async () => {
-      const { data } = await supabase.from('branches').select('id, name').order('name')
-      return data ?? []
-    },
-    enabled: isSuperAdmin,
-    staleTime: Infinity,
   })
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
-    const resolvedBranchId = isSuperAdmin ? (form.branch_id || null) : (branchId ?? null)
     const payload = {
       name: form.name,
       emoji: form.emoji || null,
@@ -168,7 +158,6 @@ function PlanModal({ open, plan, branchId, onClose, onSaved }: { open: boolean; 
       features: form.features ? form.features.split('\n').filter(Boolean) : null,
       image_url: form.image_url || null,
       active: form.active,
-      branch_id: resolvedBranchId,
     }
     const { error } = plan?.id
       ? await supabase.from('plans').update(payload).eq('id', plan.id)
@@ -184,16 +173,6 @@ function PlanModal({ open, plan, branchId, onClose, onSaved }: { open: boolean; 
           <FormField label="Nombre"><input required className={fieldClass} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></FormField>
           <FormField label="Emoji"><input className={fieldClass} value={form.emoji} onChange={e => setForm(f => ({ ...f, emoji: e.target.value }))} placeholder="🍷" /></FormField>
         </div>
-        {isSuperAdmin && (
-          <FormField label="Sucursal">
-            <select className={fieldClass} value={form.branch_id} onChange={e => setForm(f => ({ ...f, branch_id: e.target.value }))}>
-              <option value="">— Sin sucursal —</option>
-              {branches?.map(b => (
-                <option key={b.id} value={b.id}>{b.name}</option>
-              ))}
-            </select>
-          </FormField>
-        )}
         <div className="grid grid-cols-2 gap-4">
           <FormField label="Precio mensual (ARS)"><input type="number" min="0" className={fieldClass} value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} /></FormField>
           <FormField label="Badge (ej: Más popular)"><input className={fieldClass} value={form.badge} onChange={e => setForm(f => ({ ...f, badge: e.target.value }))} /></FormField>

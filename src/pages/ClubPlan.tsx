@@ -48,23 +48,23 @@ export function ClubPlan() {
   const activeSub = mySubs?.find((s) => s.plan_id === plan.id)
 
   function handleSuscribir() {
-    if (!plan!.mp_plan_id) {
+    if (plan!.price == null) {
       setNoPlanError('Este plan no está disponible para suscripción en este momento.')
       return
     }
     if (user) {
-      subscribe({ planId: plan!.id, mpPlanId: plan!.mp_plan_id, planName: plan!.name, price: plan!.price ?? 0 })
+      subscribe({ planId: plan!.id, planName: plan!.name, price: plan!.price, branchId: branch?.id ?? '' })
     } else {
       setModalOpen(true)
     }
   }
 
   function handleModalConfirm(name: string, email: string) {
-    if (!plan!.mp_plan_id) {
+    if (plan!.price == null) {
       setNoPlanError('Este plan no está disponible para suscripción en este momento.')
       return
     }
-    subscribe({ planId: plan!.id, mpPlanId: plan!.mp_plan_id, planName: plan!.name, price: plan!.price ?? 0, payerName: name, payerEmail: email })
+    subscribe({ planId: plan!.id, planName: plan!.name, price: plan!.price, branchId: branch?.id ?? '', payerName: name, payerEmail: email })
   }
 
   return (

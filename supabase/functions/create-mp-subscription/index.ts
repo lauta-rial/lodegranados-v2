@@ -1,80 +1,87 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { createClient } from "jsr:@supabase/supabase-js@2"
+import { handleOptions, jsonResponse } from "../_shared/http.ts"
+import { getBranchMp, encodeSubRef } from "../_shared/mp.ts"
 
-const MP_ACCESS_TOKEN = Deno.env.get('MP_ACCESS_TOKEN') ?? ''
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? ''
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+const SITE_URL = Deno.env.get('SITE_URL') ?? 'https://lodegranados-v2-chi.vercel.app'
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+  const pre = handleOptions(req)
+  if (pre) return pre
 
   try {
-    const { mpPlanId } = await req.json()
-    if (!mpPlanId) {
-      return new Response(JSON.stringify({ error: 'Falta mpPlanId' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+    const { planId, branchId, payerEmail, siteUrl } = await req.json()
+    if (!planId) return jsonResponse({ error: 'Falta planId' }, 400)
+    if (!branchId) return jsonResponse({ error: 'Falta branchId' }, 400)
+    if (!payerEmail) return jsonResponse({ error: 'Falta el email del pagador' }, 400)
+
+    // Who's subscribing — derived from the caller's JWT, never trusted from the
+    // body. Guests (no session) resolve to null and subscribe by email only.
+    const jwt = (req.headers.get('Authorization') ?? '').replace('Bearer ', '')
+    let userId: string | null = null
+    if (jwt) {
+      const { data } = await supabase.auth.getUser(jwt)
+      userId = data.user?.id ?? null
     }
 
-    // Only proxy to preapproval plans we actually sell — a real Club plan
-    // row must point at this mpPlanId. MP's own auth already scopes
-    // /preapproval_plan/{id} to our collector, so this isn't closing a
-    // cross-tenant leak; it's just refusing to act as a blind lookup proxy
-    // for any preapproval_plan we've ever created (including old/retired
-    // ones no longer meant to be sold).
+    // Price + name come from our own plans row, never the client — that's what
+    // the subscriber will actually be charged each month.
     const { data: plan, error: planErr } = await supabase
       .from('plans')
-      .select('id')
-      .eq('mp_plan_id', mpPlanId)
+      .select('id, name, price')
+      .eq('id', planId)
       .eq('active', true)
       .maybeSingle()
     if (planErr) console.error('create-mp-subscription: plans lookup failed', planErr.message)
-    if (!plan) {
-      return new Response(JSON.stringify({ error: 'Plan no encontrado' }), {
-        status: 404,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
+    if (!plan || plan.price == null) return jsonResponse({ error: 'Plan no encontrado' }, 404)
 
-    // Unlike checkout/preferences, a preapproval_plan's back_url is fixed
-    // at plan-creation time in MercadoPago (not passed per-checkout) — so
-    // there's nothing dynamic to build here, just fetch the plan's own
-    // init_point where the user authorizes the recurring charge.
-    const mpRes = await fetch(`https://api.mercadopago.com/preapproval_plan/${mpPlanId}`, {
-      headers: { Authorization: `Bearer ${MP_ACCESS_TOKEN}` },
+    // Which MercadoPago account this branch collects into (global fallback).
+    const { accessToken } = await getBranchMp(supabase, branchId)
+
+    // Create the subscription WITHOUT a preapproval_plan_id — an inline
+    // auto_recurring config is the only shape MP returns an init_point for
+    // (a plan_id preapproval demands a card_token_id and gives no redirect),
+    // and it lets us carry our own external_reference through to the webhook.
+    const mpRes = await fetch('https://api.mercadopago.com/preapproval', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        reason: `Club DeVinos — ${plan.name}`,
+        payer_email: payerEmail,
+        external_reference: encodeSubRef(branchId, userId, plan.id),
+        back_url: `${siteUrl || SITE_URL}/pago-exitoso?type=plan`,
+        status: 'pending',
+        auto_recurring: {
+          frequency: 1,
+          frequency_type: 'months',
+          transaction_amount: plan.price,
+          currency_id: 'ARS',
+        },
+      }),
     })
+
     if (!mpRes.ok) {
-      console.error('MP preapproval_plan fetch error:', await mpRes.text())
-      return new Response(JSON.stringify({ error: 'Error al obtener el plan de MercadoPago' }), {
-        status: 502,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      console.error('MP preapproval create error:', await mpRes.text())
+      return jsonResponse({ error: 'No se pudo iniciar la suscripción' }, 502)
     }
 
     const data = await mpRes.json()
-    if (data.status !== 'active' || !data.init_point) {
-      return new Response(JSON.stringify({ error: 'Este plan no está disponible para suscripción' }), {
-        status: 409,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+    const initPoint = data.init_point ?? data.sandbox_init_point
+    if (!initPoint) {
+      console.error('MP preapproval create: no init_point', JSON.stringify(data))
+      return jsonResponse({ error: 'Este plan no está disponible para suscripción' }, 409)
     }
 
-    return new Response(JSON.stringify({ url: data.init_point }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    return jsonResponse({ url: initPoint })
   } catch (err) {
     console.error('create-mp-subscription error:', err)
-    return new Response(JSON.stringify({ error: 'Error interno' }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    return jsonResponse({ error: 'Error interno' }, 500)
   }
 })

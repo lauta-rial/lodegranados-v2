@@ -2,6 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { createClient } from "jsr:@supabase/supabase-js@2"
 import { encodeBase64 } from "jsr:@std/encoding@1/base64"
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "https://esm.sh/pdf-lib@1.17.1"
+import { getBranchMp, decodeSubRef } from "../_shared/mp.ts"
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? ''
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -114,40 +115,53 @@ async function verifyApprovedPayment(paymentId: string | null | undefined): Prom
 }
 
 type VerifiedSubscription = {
-  plan: { id: string; name: string; branch_id: string | null; price: number | null }
+  plan: { id: string; name: string; price: number | null }
   payerEmail: string | null
+  externalReference: string | null
 }
 
 // Same reasoning as verifyApprovedPayment above, for the recurring-billing
-// side: Club plans are now real MercadoPago PreApproval subscriptions
-// (create-mp-preference rejects type:'plan' outright), and this endpoint
-// is still verify_jwt:false and reachable directly with the anon key
-// (PagoExitoso.tsx calls it from the browser on the redirect back from MP's
-// subscription checkout). preapproval_plan_id is looked up against our own
-// `plans` table rather than trusted from the request body, so a caller
-// can't claim a different (cheaper) plan than what was actually authorized.
-async function verifyAuthorizedPreapproval(preapprovalId: string | null | undefined): Promise<VerifiedSubscription | null> {
-  if (!preapprovalId || !MP_ACCESS_TOKEN) return null
+// side. The subscription is a MercadoPago preapproval created WITHOUT a
+// preapproval_plan_id (inline auto_recurring — see create-mp-subscription), so
+// the plan association travels in our own external_reference rather than via
+// MP's plan id. This endpoint is still verify_jwt:false and reachable directly
+// with the anon key (PagoExitoso.tsx calls it on the redirect back from MP), so
+// nothing here is trusted from the request body: the plan is looked up by the
+// id we stamped, and the amount the subscriber actually authorized is checked
+// against that plan's real price before activation.
+async function verifyAuthorizedPreapproval(preapprovalId: string | null | undefined, accessToken: string): Promise<VerifiedSubscription | null> {
+  if (!preapprovalId || !accessToken) return null
 
   const mpRes = await fetch(`https://api.mercadopago.com/preapproval/${preapprovalId}`, {
-    headers: { Authorization: `Bearer ${MP_ACCESS_TOKEN}` },
+    headers: { Authorization: `Bearer ${accessToken}` },
   })
   if (!mpRes.ok) {
     console.error('verifyAuthorizedPreapproval: MP fetch failed', await mpRes.text())
     return null
   }
   const preapproval = await mpRes.json()
-  if (preapproval.status !== 'authorized' || !preapproval.preapproval_plan_id) return null
+  if (preapproval.status !== 'authorized') return null
+
+  const { planId } = decodeSubRef(preapproval.external_reference)
+  if (!planId) return null
 
   const { data: plan, error: planErr } = await supabase
     .from('plans')
-    .select('id, name, branch_id, price')
-    .eq('mp_plan_id', preapproval.preapproval_plan_id)
+    .select('id, name, price')
+    .eq('id', planId)
     .maybeSingle()
   if (planErr) console.error('verifyAuthorizedPreapproval: plans lookup failed', planErr.message)
   if (!plan) return null
 
-  return { plan, payerEmail: preapproval.payer_email ?? null }
+  // Guard against a tampered preapproval authorizing a cheaper recurring amount
+  // than the plan actually costs.
+  const authorizedAmount = Number(preapproval.auto_recurring?.transaction_amount)
+  if (plan.price != null && authorizedAmount !== Number(plan.price)) {
+    console.error('verifyAuthorizedPreapproval: amount mismatch', authorizedAmount, plan.price)
+    return null
+  }
+
+  return { plan, payerEmail: preapproval.payer_email ?? null, externalReference: preapproval.external_reference ?? null }
 }
 
 type VerifiedCharge = {
@@ -164,11 +178,11 @@ type VerifiedCharge = {
 // though mp-webhook already validated the notification's HMAC signature,
 // send-email re-checks independently, consistent with how the
 // reservation/subscription paths already work).
-async function verifyAuthorizedPayment(authorizedPaymentId: string | null | undefined): Promise<VerifiedCharge | null> {
-  if (!authorizedPaymentId || !MP_ACCESS_TOKEN) return null
+async function verifyAuthorizedPayment(authorizedPaymentId: string | null | undefined, accessToken: string): Promise<VerifiedCharge | null> {
+  if (!authorizedPaymentId || !accessToken) return null
 
   const mpRes = await fetch(`https://api.mercadopago.com/authorized_payments/${authorizedPaymentId}`, {
-    headers: { Authorization: `Bearer ${MP_ACCESS_TOKEN}` },
+    headers: { Authorization: `Bearer ${accessToken}` },
   })
   if (!mpRes.ok) {
     console.error('verifyAuthorizedPayment: MP fetch failed', await mpRes.text())
@@ -594,13 +608,24 @@ Deno.serve(async (req) => {
       // like paymentId is for reservations (this endpoint is
       // verify_jwt:false and reachable directly by anyone with the anon
       // key — PagoExitoso.tsx calls it from the browser).
-      const verified = await verifyAuthorizedPreapproval(preapprovalId)
+      // Which branch/MP account this subscription belongs to — the caller
+      // (PagoExitoso or mp-webhook) passes branchId so we can fetch the
+      // preapproval with the right token; the authoritative branch + user are
+      // then read back off the preapproval's own external_reference below.
+      const { accessToken: subToken } = await getBranchMp(supabase, meta?.branchId ?? null)
+      const verified = await verifyAuthorizedPreapproval(preapprovalId, subToken)
       if (!verified) {
         return new Response(JSON.stringify({ error: 'No pudimos verificar la suscripción' }), {
           status: 403,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
       }
+
+      // Branch + user come from the preapproval's external_reference (stamped
+      // by create-mp-subscription), falling back to whatever the caller passed.
+      const ref = decodeSubRef(verified.externalReference)
+      const subBranchId = ref.branchId ?? meta?.branchId ?? null
+      const subUserId = userId ?? ref.userId ?? null
 
       // Idempotency by preapproval_id (unique constraint) — both
       // PagoExitoso.tsx (browser redirect back from MP) and mp-webhook's
@@ -623,8 +648,8 @@ Deno.serve(async (req) => {
 
       const { error: dbErr } = await supabase.from('subscriptions').insert({
         plan_id: verified.plan.id,
-        user_id: userId ?? null,
-        branch_id: verified.plan.branch_id,
+        user_id: subUserId,
+        branch_id: subBranchId,
         // Always the DB's own price, never anything client-supplied — same
         // reasoning as the reservation branch above.
         monthly_price: verified.plan.price,
@@ -642,7 +667,7 @@ Deno.serve(async (req) => {
         })
       }
 
-      const branchSlug = meta?.branchSlug ?? await resolveBranchSlug(verified.plan.branch_id)
+      const branchSlug = meta?.branchSlug ?? await resolveBranchSlug(subBranchId)
       const priceLabel = verified.plan.price != null ? `$${verified.plan.price.toLocaleString('es-AR')}` : null
 
       const html = emailBase(
@@ -659,7 +684,8 @@ Deno.serve(async (req) => {
     // notification (one per month, per subscriber) — a receipt, separate
     // from the one-time welcome email above.
     if (type === 'subscription_charged') {
-      const verified = await verifyAuthorizedPayment(authorizedPaymentId)
+      const { accessToken: chargeToken } = await getBranchMp(supabase, meta?.branchId ?? null)
+      const verified = await verifyAuthorizedPayment(authorizedPaymentId, chargeToken)
       if (!verified) {
         return new Response(JSON.stringify({ error: 'No pudimos verificar el cobro' }), {
           status: 403,
