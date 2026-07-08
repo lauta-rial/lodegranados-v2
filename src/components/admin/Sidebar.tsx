@@ -3,6 +3,7 @@ import { LayoutDashboard, CalendarDays, BookOpen, Users, MessageSquare, MapPin, 
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/AuthContext'
 import { useAdmin } from '@/context/AdminContext'
+import { useBranches } from '@/hooks/useBranches'
 
 const allLinks = [
   { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', end: true, superAdminOnly: false },
@@ -17,9 +18,11 @@ const allLinks = [
 
 export function Sidebar() {
   const { signOut, user } = useAuth()
-  const { isSuperAdmin } = useAdmin()
+  const { isSuperAdmin, branchId } = useAdmin()
+  const { data: branches } = useBranches()
   const navigate = useNavigate()
   const email = user?.email ?? ''
+  const branchName = branches?.find(b => b.id === branchId)?.name ?? null
 
   const links = allLinks.filter(l => !l.superAdminOnly || isSuperAdmin)
 
@@ -32,8 +35,11 @@ export function Sidebar() {
     <aside className="flex h-full w-56 flex-col border-r border-[var(--color-parchment)] bg-white">
       <div className="border-b border-[var(--color-parchment)] px-5 py-5">
         <p className="font-display text-lg font-semibold text-[var(--color-dark)]">Lo de Granados</p>
+        {branchName && (
+          <p className="text-sm font-medium text-[var(--color-wine)]">{branchName}</p>
+        )}
         <p className="text-xs text-[var(--color-muted)]">
-          {isSuperAdmin ? 'Super Admin' : 'Administración'}
+          {isSuperAdmin ? 'Super Admin' : 'Admin'}
         </p>
         {email && (
           <p title={email} className="mt-0.5 max-w-full truncate text-xs text-[var(--color-muted)] cursor-default">
