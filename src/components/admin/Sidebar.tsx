@@ -1,30 +1,36 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, CalendarDays, BookOpen, Users, MessageSquare, MapPin, Mail, UserCog, LogOut } from 'lucide-react'
+import { LayoutDashboard, CalendarDays, BookOpen, Users, MessageSquare, MapPin, Store, Mail, UserCog, LogOut } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/AuthContext'
 import { useAdmin } from '@/context/AdminContext'
 import { useBranches } from '@/hooks/useBranches'
 
 const allLinks = [
-  { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', end: true, superAdminOnly: false },
-  { to: '/admin/catas', icon: CalendarDays, label: 'Catas', end: false, superAdminOnly: false },
-  { to: '/admin/cursos', icon: BookOpen, label: 'Cursos', end: false, superAdminOnly: false },
-  { to: '/admin/club', icon: Users, label: 'Club', end: false, superAdminOnly: false },
-  { to: '/admin/consultas', icon: MessageSquare, label: 'Consultas', end: false, superAdminOnly: false },
-  { to: '/admin/sucursales', icon: MapPin, label: 'Sucursales', end: false, superAdminOnly: true },
-  { to: '/admin/newsletter', icon: Mail, label: 'Newsletter', end: false, superAdminOnly: true },
-  { to: '/admin/staff', icon: UserCog, label: 'Staff', end: false, superAdminOnly: true },
+  { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', end: true, superAdminOnly: false, branchAdminOnly: false },
+  { to: '/admin/catas', icon: CalendarDays, label: 'Catas', end: false, superAdminOnly: false, branchAdminOnly: false },
+  { to: '/admin/cursos', icon: BookOpen, label: 'Cursos', end: false, superAdminOnly: false, branchAdminOnly: false },
+  { to: '/admin/club', icon: Users, label: 'Club', end: false, superAdminOnly: false, branchAdminOnly: false },
+  { to: '/admin/consultas', icon: MessageSquare, label: 'Consultas', end: false, superAdminOnly: false, branchAdminOnly: false },
+  // Branch admins edit their own branch here; superadmins use "Sucursales" (all branches).
+  { to: '/admin/mi-sucursal', icon: Store, label: 'Mi Sucursal', end: false, superAdminOnly: false, branchAdminOnly: true },
+  { to: '/admin/sucursales', icon: MapPin, label: 'Sucursales', end: false, superAdminOnly: true, branchAdminOnly: false },
+  { to: '/admin/newsletter', icon: Mail, label: 'Newsletter', end: false, superAdminOnly: true, branchAdminOnly: false },
+  { to: '/admin/staff', icon: UserCog, label: 'Staff', end: false, superAdminOnly: true, branchAdminOnly: false },
 ]
 
 export function Sidebar() {
   const { signOut, user } = useAuth()
   const { isSuperAdmin, branchId } = useAdmin()
-  const { data: branches } = useBranches()
+  const { data: branches, isLoading: branchesLoading } = useBranches()
   const navigate = useNavigate()
   const email = user?.email ?? ''
   const branchName = branches?.find(b => b.id === branchId)?.name ?? null
 
-  const links = allLinks.filter(l => !l.superAdminOnly || isSuperAdmin)
+  const links = allLinks.filter(l => {
+    if (l.superAdminOnly && !isSuperAdmin) return false
+    if (l.branchAdminOnly && (isSuperAdmin || !branchId)) return false
+    return true
+  })
 
   async function handleLogout() {
     await signOut()
@@ -35,8 +41,14 @@ export function Sidebar() {
     <aside className="flex h-full w-56 flex-col border-r border-[var(--color-parchment)] bg-white">
       <div className="border-b border-[var(--color-parchment)] px-5 py-5">
         <p className="font-display text-lg font-semibold text-[var(--color-dark)]">Lo de Granados</p>
-        {branchName && (
-          <p className="text-sm font-medium text-[var(--color-wine)]">{branchName}</p>
+        {/* Branch admins get their sucursal name here; while the (cached) branch
+            list resolves, show a skeleton instead of nothing so it doesn't pop in. */}
+        {branchId && (
+          branchName ? (
+            <p className="text-sm font-medium text-[var(--color-wine)]">{branchName}</p>
+          ) : branchesLoading ? (
+            <div className="mt-1 h-4 w-24 animate-pulse rounded bg-[var(--color-parchment)]" />
+          ) : null
         )}
         <p className="text-xs text-[var(--color-muted)]">
           {isSuperAdmin ? 'Super Admin' : 'Admin'}

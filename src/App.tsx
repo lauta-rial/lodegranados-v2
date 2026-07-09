@@ -37,6 +37,7 @@ const AdminNewsletter = lazy(() => import('@/pages/admin/AdminNewsletter').then(
 const AdminStaff = lazy(() => import('@/pages/admin/AdminStaff').then(m => ({ default: m.AdminStaff })))
 const AdminEventLive = lazy(() => import('@/pages/admin/AdminEventLive').then(m => ({ default: m.AdminEventLive })))
 const AdminClubScan = lazy(() => import('@/pages/admin/AdminClubScan').then(m => ({ default: m.AdminClubScan })))
+const AdminMiSucursal = lazy(() => import('@/pages/admin/AdminMiSucursal').then(m => ({ default: m.AdminMiSucursal })))
 
 export default function App() {
   return (
@@ -78,6 +79,7 @@ export default function App() {
             <Route path="club" element={<Suspense><AdminClub /></Suspense>} />
             <Route path="club/scan" element={<Suspense><AdminClubScan /></Suspense>} />
             <Route path="consultas" element={<Suspense><AdminConsultas /></Suspense>} />
+            <Route path="mi-sucursal" element={<Suspense><AdminMiSucursal /></Suspense>} />
             <Route path="sucursales" element={<SuperAdminRoute><Suspense><AdminSucursales /></Suspense></SuperAdminRoute>} />
             <Route path="newsletter" element={<SuperAdminRoute><Suspense><AdminNewsletter /></Suspense></SuperAdminRoute>} />
             <Route path="staff" element={<SuperAdminRoute><Suspense><AdminStaff /></Suspense></SuperAdminRoute>} />
