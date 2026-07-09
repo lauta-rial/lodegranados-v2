@@ -5,6 +5,7 @@ import { useBranch } from '@/context/BranchContext'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { Badge } from '@/components/ui/Badge'
 import { formatDate, formatPrice } from '@/lib/utils'
+import { DEFAULT_IMAGES } from '@/lib/defaultImages'
 import type { Event } from '@/types/database'
 
 export function Cursos() {
@@ -52,13 +53,11 @@ function CourseCard({ course, branchSlug }: { course: Event; branchSlug: string 
         className="w-40 shrink-0"
         style={{ background: 'linear-gradient(160deg, #c4956a 0%, #8b5e3c 100%)' }}
       >
-        {course.image_url && (
-          <img
-            src={course.image_url}
-            alt={course.title}
-            className="h-full w-full object-cover"
-          />
-        )}
+        <img
+          src={course.image_url || DEFAULT_IMAGES.curso}
+          alt={course.title}
+          className="h-full w-full object-cover"
+        />
       </div>
 
       <div className="flex flex-1 flex-col justify-between p-6">

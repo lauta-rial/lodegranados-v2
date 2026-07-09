@@ -9,6 +9,7 @@ import { CheckoutModal } from '@/components/CheckoutModal'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { formatPrice, getWhatsAppUrl } from '@/lib/utils'
 import { cn } from '@/lib/utils'
+import { DEFAULT_IMAGES } from '@/lib/defaultImages'
 import type { Plan } from '@/types/database'
 
 export function Club() {
@@ -118,11 +119,9 @@ function PlanCard({ plan, branchSlug, branchId }: { plan: Plan; branchSlug: stri
           </div>
         )}
 
-        {plan.image_url && (
-          <div className="-mx-8 -mt-8 mb-6 h-36 overflow-hidden rounded-t-2xl">
-            <img src={plan.image_url} alt={plan.name} className="h-full w-full object-cover" />
-          </div>
-        )}
+        <div className="-mx-8 -mt-8 mb-6 h-36 overflow-hidden rounded-t-2xl">
+          <img src={plan.image_url || DEFAULT_IMAGES.plan} alt={plan.name} className="h-full w-full object-cover" />
+        </div>
 
         <div className="flex items-center gap-3">
           {plan.emoji && <span className="text-3xl">{plan.emoji}</span>}

@@ -12,6 +12,7 @@ import { ClubQr } from '@/components/ClubQr'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { formatPrice } from '@/lib/utils'
 import { cn } from '@/lib/utils'
+import { DEFAULT_IMAGES } from '@/lib/defaultImages'
 import type { Plan } from '@/types/database'
 
 export function ClubPlan() {
@@ -76,11 +77,9 @@ export function ClubPlan() {
         <ArrowLeft size={14} /> Volver al Club
       </Link>
 
-      {plan.image_url && (
-        <div className="mb-10 h-52 w-full overflow-hidden rounded-2xl">
-          <img src={plan.image_url} alt={plan.name} className="h-full w-full object-cover" />
-        </div>
-      )}
+      <div className="mb-10 h-52 w-full overflow-hidden rounded-2xl">
+        <img src={plan.image_url || DEFAULT_IMAGES.plan} alt={plan.name} className="h-full w-full object-cover" />
+      </div>
 
       <div className="grid grid-cols-1 gap-12 lg:grid-cols-5">
         {/* Left — plan info */}

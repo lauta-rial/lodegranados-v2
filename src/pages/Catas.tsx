@@ -5,6 +5,7 @@ import { useBranch } from '@/context/BranchContext'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { Badge } from '@/components/ui/Badge'
 import { formatDate, formatPrice } from '@/lib/utils'
+import { DEFAULT_IMAGES } from '@/lib/defaultImages'
 import type { Event } from '@/types/database'
 
 export function Catas() {
@@ -53,13 +54,11 @@ function EventCard({ event, branchSlug }: { event: Event; branchSlug: string }) 
         className="relative h-48 overflow-hidden"
         style={{ background: 'linear-gradient(135deg, #7b1c35 0%, #2c1810 100%)' }}
       >
-        {event.image_url && (
-          <img
-            src={event.image_url}
-            alt={event.title}
-            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-          />
-        )}
+        <img
+          src={event.image_url || DEFAULT_IMAGES.cata}
+          alt={event.title}
+          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+        />
         <div className="absolute right-3 top-3">
           {soldOut ? (
             <Badge variant="neutral">Sin lugares</Badge>

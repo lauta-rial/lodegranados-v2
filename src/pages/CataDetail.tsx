@@ -9,6 +9,7 @@ import { CheckoutModal } from '@/components/CheckoutModal'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { Badge } from '@/components/ui/Badge'
 import { formatDate, formatPrice } from '@/lib/utils'
+import { DEFAULT_IMAGES } from '@/lib/defaultImages'
 
 export function CataDetail() {
   const { id } = useParams<{ id: string }>()
@@ -53,9 +54,7 @@ export function CataDetail() {
         className="h-72 w-full rounded-3xl overflow-hidden sm:h-96"
         style={{ background: 'linear-gradient(135deg, #7b1c35 0%, #2c1810 100%)' }}
       >
-        {event.image_url && (
-          <img src={event.image_url} alt={event.title} className="h-full w-full object-cover" />
-        )}
+        <img src={event.image_url || DEFAULT_IMAGES.cata} alt={event.title} className="h-full w-full object-cover" />
       </div>
 
       <div className="mt-10 grid grid-cols-1 gap-12 lg:grid-cols-3">

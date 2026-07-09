@@ -4,6 +4,7 @@ import { useBranch } from '@/context/BranchContext'
 import { useEvents } from '@/hooks/useEvents'
 import { NewsletterSection } from '@/components/NewsletterSection'
 import { formatDate, formatPrice } from '@/lib/utils'
+import { DEFAULT_IMAGES } from '@/lib/defaultImages'
 
 export function BranchHome() {
   const branch = useBranch()!
@@ -17,23 +18,9 @@ export function BranchHome() {
       <section className="relative flex min-h-[60vh] items-end overflow-hidden">
         <div
           className="absolute inset-0 bg-cover bg-center"
-          style={branch.image_url
-            ? { backgroundImage: `url(${branch.image_url})` }
-            : { background: 'linear-gradient(135deg, #2c1810 0%, #7b1c35 50%, #c4956a 100%)' }
-          }
+          style={{ backgroundImage: `url(${branch.image_url || DEFAULT_IMAGES.branchHero})` }}
         />
-        {branch.image_url ? (
-          <div className="absolute inset-0 bg-black/55" />
-        ) : (
-          <div
-            className="absolute inset-0 opacity-15"
-            style={{
-              backgroundImage:
-                'radial-gradient(circle at 20% 80%, #fff 1px, transparent 1px), radial-gradient(circle at 80% 20%, #fff 1px, transparent 1px)',
-              backgroundSize: '60px 60px',
-            }}
-          />
-        )}
+        <div className="absolute inset-0 bg-black/55" />
         <div className="relative mx-auto w-full max-w-7xl px-4 pb-16 sm:px-6 lg:px-8">
           <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#c4956a]">
             Lo de Granados
