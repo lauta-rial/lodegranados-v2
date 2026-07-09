@@ -25,6 +25,8 @@ export type Database = {
           instagram: string | null
           name: string
           phone: string | null
+          postal_code: string | null
+          province: string | null
           slug: string | null
           updated_at: string | null
         }
@@ -38,6 +40,8 @@ export type Database = {
           instagram?: string | null
           name: string
           phone?: string | null
+          postal_code?: string | null
+          province?: string | null
           slug?: string | null
           updated_at?: string | null
         }
@@ -51,6 +55,8 @@ export type Database = {
           instagram?: string | null
           name?: string
           phone?: string | null
+          postal_code?: string | null
+          province?: string | null
           slug?: string | null
           updated_at?: string | null
         }

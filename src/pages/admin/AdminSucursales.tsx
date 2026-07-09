@@ -129,8 +129,10 @@ function BranchModal({ open, branch, onClose, onSaved }: {
   const [form, setForm] = useState({
     name: branch?.name ?? '',
     slug: branch?.slug ?? '',
+    province: branch?.province ?? '',
     city: branch?.city ?? '',
     address: branch?.address ?? '',
+    postal_code: branch?.postal_code ?? '',
     phone: branch?.phone ?? '',
     instagram: branch?.instagram ?? '',
     image_url: branch?.image_url ?? '',
@@ -150,8 +152,10 @@ function BranchModal({ open, branch, onClose, onSaved }: {
     const payload = {
       name: form.name,
       slug: form.slug.toLowerCase().replace(/\s+/g, '-'),
+      province: form.province || null,
       city: form.city || null,
       address: form.address || null,
+      postal_code: form.postal_code || null,
       phone: form.phone || null,
       instagram: form.instagram || null,
       image_url: form.image_url || null,
@@ -176,19 +180,29 @@ function BranchModal({ open, branch, onClose, onSaved }: {
           </FormField>
         </div>
         <div className="grid grid-cols-2 gap-4">
+          <FormField label="Provincia">
+            <input className={fieldClass} value={form.province} onChange={set('province')} placeholder="Santa Fe" />
+          </FormField>
           <FormField label="Ciudad">
             <input className={fieldClass} value={form.city} onChange={set('city')} placeholder="Rosario" />
           </FormField>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <FormField label="Dirección">
+            <input className={fieldClass} value={form.address} onChange={set('address')} placeholder="Av. San Martín 1234" />
+          </FormField>
+          <FormField label="Código postal">
+            <input className={fieldClass} value={form.postal_code} onChange={set('postal_code')} placeholder="S2000" />
+          </FormField>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
           <FormField label="Teléfono (WhatsApp)">
             <input className={fieldClass} value={form.phone} onChange={set('phone')} placeholder="+54 341 000-0000" />
           </FormField>
+          <FormField label="Instagram">
+            <input className={fieldClass} value={form.instagram} onChange={set('instagram')} placeholder="@lodegranados" />
+          </FormField>
         </div>
-        <FormField label="Dirección">
-          <input className={fieldClass} value={form.address} onChange={set('address')} placeholder="Av. San Martín 1234" />
-        </FormField>
-        <FormField label="Instagram">
-          <input className={fieldClass} value={form.instagram} onChange={set('instagram')} placeholder="@lodegranados" />
-        </FormField>
         <FormField label="Foto de hero">
           <ImageUpload folder="branches/" value={form.image_url} onChange={url => setForm(f => ({ ...f, image_url: url }))} dimensions="1920 × 1080 px · ratio 16:9" />
         </FormField>

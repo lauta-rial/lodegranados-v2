@@ -58,8 +58,10 @@ function BranchForm({ branch }: { branch: Branch }) {
   const qc = useQueryClient()
   const [form, setForm] = useState({
     name: branch.name ?? '',
+    province: branch.province ?? '',
     city: branch.city ?? '',
     address: branch.address ?? '',
+    postal_code: branch.postal_code ?? '',
     phone: branch.phone ?? '',
     instagram: branch.instagram ?? '',
     image_url: branch.image_url ?? '',
@@ -78,8 +80,10 @@ function BranchForm({ branch }: { branch: Branch }) {
     // and the DB trigger would reject a change anyway).
     const { error } = await supabase.from('branches').update({
       name: form.name,
+      province: form.province || null,
       city: form.city || null,
       address: form.address || null,
+      postal_code: form.postal_code || null,
       phone: form.phone || null,
       instagram: form.instagram || null,
       image_url: form.image_url || null,
@@ -97,13 +101,24 @@ function BranchForm({ branch }: { branch: Branch }) {
 
   return (
     <form onSubmit={handleSubmit} className="max-w-2xl rounded-2xl border border-[var(--color-parchment)] bg-white p-6 space-y-4">
-      {/* Read-only structural fields */}
+      {/* Read-only structural fields — greyed out; the "superadmin only" note
+          is a hover tooltip rather than visible label text. */}
       <div className="grid grid-cols-2 gap-4">
-        <FormField label="Slug (URL) · solo superadmin">
-          <input className={fieldClass} value={`/${branch.slug ?? ''}`} disabled />
+        <FormField label="Slug (URL)">
+          <input
+            className={`${fieldClass} cursor-not-allowed opacity-60`}
+            value={`/${branch.slug ?? ''}`}
+            disabled
+            title="Solo el superadmin puede cambiar el slug"
+          />
         </FormField>
-        <FormField label="Estado · solo superadmin">
-          <input className={fieldClass} value={branch.active ? 'Activa' : 'Inactiva'} disabled />
+        <FormField label="Estado">
+          <input
+            className={`${fieldClass} cursor-not-allowed opacity-60`}
+            value={branch.active ? 'Activa' : 'Inactiva'}
+            disabled
+            title="Solo el superadmin puede activar o desactivar la sucursal"
+          />
         </FormField>
       </div>
 
@@ -111,19 +126,29 @@ function BranchForm({ branch }: { branch: Branch }) {
         <input required className={fieldClass} value={form.name} onChange={set('name')} placeholder="Pichincha" />
       </FormField>
       <div className="grid grid-cols-2 gap-4">
+        <FormField label="Provincia">
+          <input className={fieldClass} value={form.province} onChange={set('province')} placeholder="Santa Fe" />
+        </FormField>
         <FormField label="Ciudad">
           <input className={fieldClass} value={form.city} onChange={set('city')} placeholder="Rosario" />
         </FormField>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <FormField label="Dirección">
+          <input className={fieldClass} value={form.address} onChange={set('address')} placeholder="Av. San Martín 1234" />
+        </FormField>
+        <FormField label="Código postal">
+          <input className={fieldClass} value={form.postal_code} onChange={set('postal_code')} placeholder="S2000" />
+        </FormField>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
         <FormField label="Teléfono (WhatsApp)">
           <input className={fieldClass} value={form.phone} onChange={set('phone')} placeholder="+54 341 000-0000" type="tel" />
         </FormField>
+        <FormField label="Instagram">
+          <input className={fieldClass} value={form.instagram} onChange={set('instagram')} placeholder="@lodegranados" />
+        </FormField>
       </div>
-      <FormField label="Dirección">
-        <input className={fieldClass} value={form.address} onChange={set('address')} placeholder="Av. San Martín 1234" />
-      </FormField>
-      <FormField label="Instagram">
-        <input className={fieldClass} value={form.instagram} onChange={set('instagram')} placeholder="@lodegranados" />
-      </FormField>
       <FormField label="Foto de hero">
         <ImageUpload folder="branches/" value={form.image_url} onChange={url => setForm(f => ({ ...f, image_url: url }))} dimensions="1920 × 1080 px · ratio 16:9" />
       </FormField>
