@@ -46,7 +46,7 @@ test.describe('MiCuenta', () => {
 
       await expect(page.getByRole('heading', { name: 'Mis catas' })).toBeVisible()
       await expect(page.getByRole('link', { name: 'Cata de Malbec Mendocino' })).toBeVisible()
-      await expect(page.getByText('Confirmada')).toBeVisible() // AttendanceBadge — registrations.attended defaults to false, not null
+      await expect(page.getByText('Pendiente')).toBeVisible() // AttendanceBadge — registrations.attended now defaults to null (pending), set by scan/close
 
       await page.getByRole('button', { name: /QR/ }).first().click()
       await expect(page.getByAltText(/QR entrada/).first()).toBeVisible()

@@ -408,3 +408,63 @@ export async function getBranchBySlug(slug: string): Promise<{ id: string } | nu
 export async function deleteBranchBySlug(slug: string): Promise<void> {
   await adminRequest(`branches?slug=eq.${encodeURIComponent(slug)}`, { method: 'DELETE', action: 'delete branch by slug' })
 }
+
+// --- Club redemption (canjes) helpers ---
+
+export async function getActiveSubscription(): Promise<{ id: string; redeem_token: string } | null> {
+  const res = await adminRequest('subscriptions?status=eq.active&select=id,redeem_token&limit=1', {
+    action: 'read an active subscription',
+  })
+  const [row] = await res.json()
+  return row ?? null
+}
+
+// Raw Response (not thrown-on-error) so callers can assert on the outcome: a
+// 409 for a duplicate (subscription_id, period), or an RLS-filtered empty body
+// when a non-admin token is used. `token` is the Authorization bearer — the
+// service role key for admin inserts, or a user's access token for the RLS case.
+export async function insertClubRedemption(subscriptionId: string, period: string, token: string): Promise<Response> {
+  return fetch(`${SUPABASE_URL}/rest/v1/club_redemptions`, {
+    method: 'POST',
+    headers: {
+      apikey: ANON_KEY,
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      Prefer: 'return=representation',
+    },
+    body: JSON.stringify({ subscription_id: subscriptionId, period }),
+  })
+}
+
+export async function deleteClubRedemptions(subscriptionId: string, period: string): Promise<void> {
+  await adminRequest(`club_redemptions?subscription_id=eq.${subscriptionId}&period=eq.${period}`, {
+    method: 'DELETE', action: 'delete club redemptions',
+  })
+}
+
+export function serviceRoleKey(): string {
+  return requireServiceRoleKey()
+}
+
+// --- Attendance helpers ---
+
+export async function getRegistrationAttended(id: string): Promise<boolean | null> {
+  const res = await adminRequest(`registrations?id=eq.${id}&select=attended`, {
+    action: 'read registration attended',
+  })
+  const [row] = await res.json()
+  return row?.attended ?? null
+}
+
+// Direct GoTrue password-grant — returns a user's access token without driving
+// the UI, for API-level RLS/trigger assertions (mirrors what the app's client
+// stores in localStorage after a login).
+export async function getAccessToken(email: string, password: string): Promise<string> {
+  const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+    method: 'POST',
+    headers: { apikey: ANON_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  })
+  if (!res.ok) throw new Error(`login failed for ${email}: ${res.status} ${await res.text()}`)
+  return (await res.json()).access_token
+}

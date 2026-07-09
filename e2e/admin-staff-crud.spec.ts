@@ -46,13 +46,18 @@ test('assign an existing host to an event, then remove them, via the event edito
   await page.goto('/admin/catas')
 
   try {
+    // Hosts management moved from a per-row icon into the event edit modal:
+    // open the editor, then use the inline "Hosts" section inside it.
     const eventRow = page.getByRole('row', { name: /Cata Vertical/ })
-    await eventRow.getByRole('button', { name: 'Hosts' }).click()
+    await eventRow.getByRole('button', { name: 'Editar' }).click()
 
-    await expect(page.getByRole('heading', { name: /Hosts · Cata Vertical/ })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Hosts' })).toBeVisible()
     await expect(page.getByText('No hay hosts asignados todavía.')).toBeVisible()
 
-    await page.getByRole('combobox').selectOption({ label: HOST_TEST_EMAIL })
+    // Scope to the hosts <select> (the superadmin modal also has a Sucursal
+    // combobox) by the one that lists the host email as an option.
+    const hostSelect = page.getByRole('combobox').filter({ has: page.getByRole('option', { name: HOST_TEST_EMAIL }) })
+    await hostSelect.selectOption({ label: HOST_TEST_EMAIL })
     await page.getByRole('button', { name: 'Asignar' }).click()
 
     const assignedRow = page.getByText(HOST_TEST_EMAIL)

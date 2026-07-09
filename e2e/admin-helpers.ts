@@ -4,7 +4,7 @@ import { expect, type Page } from '@playwright/test'
 // so the new admin CRUD specs (Sucursales/Newsletter/Staff) can share it
 // instead of each pasting their own copy — all of them need the exact same
 // superadmin login, none of them need branch-scoping variants.
-export const SUPERADMIN = { email: 'whatsapp.assistance@gmail.com', password: 'Admin1234!' }
+export const SUPERADMIN = { email: 'whatsapp.assistance.v1+superadmin@gmail.com', password: 'Admin1234!' }
 
 export async function loginAdmin(page: Page, creds: { email: string; password: string }) {
   await page.context().clearCookies()
