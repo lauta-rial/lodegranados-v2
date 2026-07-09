@@ -18,7 +18,7 @@ const allLinks = [
   { to: '/admin/staff', icon: UserCog, label: 'Staff', end: false, superAdminOnly: true, branchAdminOnly: false },
 ]
 
-export function Sidebar() {
+export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { signOut, user } = useAuth()
   const { isSuperAdmin, branchId } = useAdmin()
   const { data: branches, isLoading: branchesLoading } = useBranches()
@@ -38,7 +38,13 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="flex h-full w-56 flex-col border-r border-[var(--color-parchment)] bg-white">
+    <aside
+      className={cn(
+        // Static column on desktop; slide-in drawer on mobile.
+        'fixed inset-y-0 left-0 z-40 flex h-full w-56 flex-col border-r border-[var(--color-parchment)] bg-white transition-transform duration-200 lg:static lg:z-auto lg:translate-x-0',
+        open ? 'translate-x-0 shadow-xl' : '-translate-x-full',
+      )}
+    >
       <div className="border-b border-[var(--color-parchment)] px-5 py-5">
         <p className="font-display text-lg font-semibold text-[var(--color-dark)]">Lo de Granados</p>
         {/* Branch admins get their sucursal name here; while the (cached) branch
@@ -66,6 +72,7 @@ export function Sidebar() {
             key={to}
             to={to}
             end={end}
+            onClick={onClose}
             className={({ isActive }) =>
               cn(
                 'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Outlet, Navigate, useLocation } from 'react-router-dom'
+import { Menu } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { AdminProvider } from '@/context/AdminContext'
 import { Sidebar } from './Sidebar'
@@ -69,6 +70,7 @@ function AdminLoginForm() {
 export function AdminLayout() {
   const { user, loading } = useAuth()
   const location = useLocation()
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   if (loading) return null
 
@@ -108,10 +110,34 @@ export function AdminLayout() {
   return (
     <AdminProvider>
       <div className="flex h-screen overflow-hidden bg-[var(--color-cream)]">
-        <Sidebar />
-        <main className="flex-1 overflow-y-auto">
-          <Outlet />
-        </main>
+        {/* Mobile drawer backdrop */}
+        {sidebarOpen && (
+          <div
+            className="fixed inset-0 z-30 bg-black/40 lg:hidden"
+            onClick={() => setSidebarOpen(false)}
+            aria-hidden
+          />
+        )}
+
+        <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+
+        <div className="flex flex-1 flex-col overflow-hidden">
+          {/* Mobile top bar with hamburger — the sidebar is a drawer below lg. */}
+          <div className="flex items-center gap-3 border-b border-[var(--color-parchment)] bg-white px-4 py-3 lg:hidden">
+            <button
+              onClick={() => setSidebarOpen(true)}
+              aria-label="Abrir menú"
+              className="-ml-1 rounded-lg p-1 text-[var(--color-dark-muted)] hover:bg-[var(--color-cream-dark)] transition-colors"
+            >
+              <Menu size={22} />
+            </button>
+            <span className="font-display text-lg font-semibold text-[var(--color-dark)]">Lo de Granados</span>
+          </div>
+
+          <main className="flex-1 overflow-y-auto">
+            <Outlet />
+          </main>
+        </div>
       </div>
     </AdminProvider>
   )

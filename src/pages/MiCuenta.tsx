@@ -36,16 +36,18 @@ export function MiCuenta() {
           <img
             src={avatarUrl}
             alt=""
-            className="h-16 w-16 rounded-full object-cover ring-2 ring-[var(--color-parchment)]"
+            className="h-16 w-16 shrink-0 rounded-full object-cover ring-2 ring-[var(--color-parchment)]"
           />
         ) : (
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[var(--color-wine)]/10">
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-[var(--color-wine)]/10">
             <User size={28} className="text-[var(--color-wine)]" />
           </div>
         )}
-        <div>
-          <h1 className="font-display text-3xl font-light text-[var(--color-dark)]">{displayName}</h1>
-          <p className="mt-0.5 text-sm text-[var(--color-muted)]">{user.email}</p>
+        {/* min-w-0 + wrap/truncate so a long name or email can't overflow on
+            mobile (a display name derived from a long email has no spaces). */}
+        <div className="min-w-0">
+          <h1 className="font-display text-3xl font-light text-[var(--color-dark)] break-words">{displayName}</h1>
+          <p title={user.email} className="mt-0.5 truncate text-sm text-[var(--color-muted)]">{user.email}</p>
         </div>
       </div>
 
