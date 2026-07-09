@@ -2,25 +2,18 @@ import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus, Trash2, Pencil } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { Modal } from '@/components/admin/Modal'
 import { FormField, FormActions, fieldClass } from '@/components/admin/AdminFormField'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { formatDate } from '@/lib/utils'
 import type { Event, EventSession } from '@/types/database'
 
-// Only meaningful for kind='curso' — a cata always has exactly one session,
-// auto-created and kept in sync with the event's own date/time/location by
-// a DB trigger (see migration per_session_tickets_and_session_lifecycle),
-// so there's nothing to manage there. A course's classes 2..N have no
-// stored date until an admin adds them here — existing multi-class courses
-// migrated from the old `courses` table only ever had a free-text
-// `schedule` string, never per-class dates, so there's no way to
-// auto-populate these; that's a real, unavoidable manual step.
-export function SessionsManager({ open, event, onClose }: {
-  open: boolean
-  event: Event
-  onClose: () => void
-}) {
+// Inline section (lives inside the curso edit modal now). Only meaningful for
+// kind='curso' — a cata always has exactly one session, auto-created and kept
+// in sync with the event's own date/time/location by a DB trigger (see
+// migration per_session_tickets_and_session_lifecycle), so there's nothing to
+// manage there. A course's classes 2..N have no stored date until an admin
+// adds them here.
+export function SessionsSection({ event }: { event: Event }) {
   const qc = useQueryClient()
   const [editing, setEditing] = useState<EventSession | 'new' | null>(null)
 
@@ -35,7 +28,6 @@ export function SessionsManager({ open, event, onClose }: {
       if (error) throw error
       return data
     },
-    enabled: open,
   })
 
   async function handleDelete(session: EventSession) {
@@ -52,7 +44,8 @@ export function SessionsManager({ open, event, onClose }: {
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={`Sesiones · ${event.title}`} size="lg">
+    <section>
+      <h3 className="mb-3 text-sm font-semibold text-[var(--color-dark)]">Sesiones (clases)</h3>
       {editing ? (
         <SessionForm
           eventId={event.id}
@@ -116,7 +109,7 @@ export function SessionsManager({ open, event, onClose }: {
           </div>
         </div>
       )}
-    </Modal>
+    </section>
   )
 }
 

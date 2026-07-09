@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus, Trash2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { Modal } from '@/components/admin/Modal'
 import { fieldClass } from '@/components/admin/AdminFormField'
 import { Skeleton } from '@/components/ui/Skeleton'
 import type { Event } from '@/types/database'
@@ -10,16 +9,12 @@ import type { Event } from '@/types/database'
 type AssignedHost = { id: string; user_id: string; email: string }
 type HostOption = { id: string; email: string }
 
-// Assigning a host to an event never invites anyone inline — every host
-// account has to already exist (created in the Staff CRUD, AdminStaff.tsx)
-// before it shows up here. The dropdown is branch-scoped (get_branch_hosts)
-// because an event belongs to a branch — a host from another branch simply
-// never appears as an option.
-export function EventHostsManager({ open, event, onClose }: {
-  open: boolean
-  event: Event
-  onClose: () => void
-}) {
+// Inline section (lives inside the event edit modal now, not its own modal).
+// Assigning a host never invites anyone inline — every host account has to
+// already exist (created in the Staff CRUD, AdminStaff.tsx) before it shows up
+// here. The dropdown is branch-scoped (get_branch_hosts) because an event
+// belongs to a branch — a host from another branch never appears as an option.
+export function EventHostsSection({ event }: { event: Event }) {
   const qc = useQueryClient()
   const [selected, setSelected] = useState('')
   const [assigning, setAssigning] = useState(false)
@@ -32,7 +27,6 @@ export function EventHostsManager({ open, event, onClose }: {
       if (error) throw error
       return data
     },
-    enabled: open,
   })
 
   const { data: branchHosts } = useQuery<HostOption[]>({
@@ -43,7 +37,7 @@ export function EventHostsManager({ open, event, onClose }: {
       if (error) throw error
       return data
     },
-    enabled: open && !!event.branch_id,
+    enabled: !!event.branch_id,
   })
 
   const availableOptions = (branchHosts ?? []).filter((h) => !assigned?.some((a) => a.user_id === h.id))
@@ -76,7 +70,9 @@ export function EventHostsManager({ open, event, onClose }: {
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={`Hosts · ${event.title}`} size="md">
+    <section>
+      <h3 className="mb-3 text-sm font-semibold text-[var(--color-dark)]">Hosts</h3>
+
       <form onSubmit={handleAssign} className="flex items-end gap-2">
         <div className="flex-1 space-y-1">
           <label className="text-xs font-medium text-[var(--color-dark-muted)]">Asignar host</label>
@@ -107,13 +103,13 @@ export function EventHostsManager({ open, event, onClose }: {
         {isLoading ? (
           <div className="p-4 space-y-3">{[...Array(2)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
         ) : !assigned?.length ? (
-          <p className="p-8 text-center text-sm text-[var(--color-muted)]">No hay hosts asignados todavía.</p>
+          <p className="p-6 text-center text-sm text-[var(--color-muted)]">No hay hosts asignados todavía.</p>
         ) : (
           <ul className="divide-y divide-[var(--color-parchment)]">
             {assigned.map((a) => (
               <li key={a.id} className="flex items-center justify-between px-4 py-3 text-sm text-[var(--color-dark)]">
                 {a.email}
-                <button onClick={() => handleRemove(a.id)} className="rounded p-1 text-[var(--color-muted)] hover:text-red-600 transition-colors">
+                <button type="button" onClick={() => handleRemove(a.id)} className="rounded p-1 text-[var(--color-muted)] hover:text-red-600 transition-colors">
                   <Trash2 size={14} />
                 </button>
               </li>
@@ -121,6 +117,6 @@ export function EventHostsManager({ open, event, onClose }: {
           </ul>
         )}
       </div>
-    </Modal>
+    </section>
   )
 }

@@ -9,11 +9,8 @@ export function AdminCatas() {
 
   return (
     <div className="p-8">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="font-display text-3xl text-[var(--color-dark)]">Catas</h1>
-          <p className="mt-1 text-sm text-[var(--color-muted)]">Gestión de eventos y registraciones</p>
-        </div>
+      <div className="mb-6">
+        <h1 className="font-display text-3xl text-[var(--color-dark)]">Catas</h1>
       </div>
 
       <div className="mb-6 flex gap-1 rounded-xl border border-[var(--color-parchment)] bg-white p-1 w-fit">
@@ -27,7 +24,7 @@ export function AdminCatas() {
                 : 'text-[var(--color-dark-muted)] hover:text-[var(--color-dark)]'
             }`}
           >
-            {t === 'events' ? 'Eventos' : 'Inscripciones'}
+            {t === 'events' ? 'Catas' : 'Inscripciones'}
           </button>
         ))}
       </div>

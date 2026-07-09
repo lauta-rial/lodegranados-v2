@@ -11,7 +11,6 @@ export function AdminCursos() {
     <div className="p-8">
       <div className="mb-6">
         <h1 className="font-display text-3xl text-[var(--color-dark)]">Cursos</h1>
-        <p className="mt-1 text-sm text-[var(--color-muted)]">Gestión de cursos e inscripciones</p>
       </div>
 
       <div className="mb-6 flex gap-1 rounded-xl border border-[var(--color-parchment)] bg-white p-1 w-fit">

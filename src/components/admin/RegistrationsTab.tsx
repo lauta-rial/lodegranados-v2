@@ -1,5 +1,4 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Check } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAdmin } from '@/context/AdminContext'
 import { StatusBadge } from '@/pages/admin/AdminDashboard'
@@ -13,9 +12,10 @@ const statusCycle: Record<string, string> = { enrolled: 'completed', completed: 
 
 // registrations absorbed enrollments — a cata registration and a curso
 // registration are the same table now, distinguished by their event's kind.
-// Catas keep the manual "asistió" toggle (attended, independent of QR scan
-// state); cursos keep the enrolled/completed/dropped status cycle that used
-// to live on enrollments.status.
+// Catas show attendance read-only (attended is set automatically: a validated
+// ticket flips it to SÍ, and closing the event flips the rest to NO — see the
+// attendance triggers migration). Cursos keep the enrolled/completed/dropped
+// status cycle that used to live on enrollments.status.
 export function RegistrationsTab({ kind }: { kind: EventKind }) {
   const qc = useQueryClient()
   const { branchId, isSuperAdmin } = useAdmin()
@@ -44,11 +44,6 @@ export function RegistrationsTab({ kind }: { kind: EventKind }) {
     },
   })
 
-  async function toggleAttendance(id: string, current: boolean | null) {
-    await supabase.from('registrations').update({ attended: !current }).eq('id', id)
-    qc.invalidateQueries({ queryKey: ['admin-registrations', kind] })
-  }
-
   async function cycleStatus(id: string, current: string | null) {
     await supabase.from('registrations').update({ status: statusCycle[current ?? ''] ?? 'enrolled' }).eq('id', id)
     qc.invalidateQueries({ queryKey: ['admin-registrations', kind] })
@@ -70,7 +65,7 @@ export function RegistrationsTab({ kind }: { kind: EventKind }) {
               {isSuperAdmin && <th className="px-4 py-3 text-left font-medium text-[var(--color-muted)]">Sucursal</th>}
               {kind === 'cata' ? (
                 <>
-                  <th className="px-4 py-3 text-left font-medium text-[var(--color-muted)]">Cupos</th>
+                  <th className="px-4 py-3 text-left font-medium text-[var(--color-muted)]">Entradas</th>
                   <th className="px-4 py-3 text-left font-medium text-[var(--color-muted)]">Asistió</th>
                 </>
               ) : (
@@ -89,16 +84,7 @@ export function RegistrationsTab({ kind }: { kind: EventKind }) {
                   <>
                     <td className="px-4 py-3 text-[var(--color-dark-muted)]">{r.spots ?? 1}</td>
                     <td className="px-4 py-3">
-                      <button
-                        onClick={() => toggleAttendance(r.id, r.attended)}
-                        className={`flex h-7 w-7 items-center justify-center rounded-full border transition-colors ${
-                          r.attended
-                            ? 'border-emerald-300 bg-emerald-50 text-emerald-600'
-                            : 'border-[var(--color-parchment)] text-[var(--color-muted)] hover:border-emerald-300'
-                        }`}
-                      >
-                        <Check size={13} />
-                      </button>
+                      <AttendedBadge attended={r.attended} />
                     </td>
                   </>
                 ) : (
@@ -114,5 +100,17 @@ export function RegistrationsTab({ kind }: { kind: EventKind }) {
         </table>
       )}
     </div>
+  )
+}
+
+// Read-only attendance, set automatically by DB triggers:
+// null → '-' (before/undecided), true → 'SÍ' (a ticket was scanned),
+// false → 'NO' (event closed without a scan).
+function AttendedBadge({ attended }: { attended: boolean | null }) {
+  if (attended === null) return <span className="text-[var(--color-muted)]">—</span>
+  return attended ? (
+    <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">SÍ</span>
+  ) : (
+    <span className="rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-medium text-red-700">NO</span>
   )
 }

@@ -1,13 +1,13 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, Pencil, Trash2, QrCode, CalendarRange, Users } from 'lucide-react'
+import { Plus, Pencil, Trash2, QrCode } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { Modal } from '@/components/admin/Modal'
 import { FormField, FormActions, fieldClass } from '@/components/admin/AdminFormField'
 import { ImageUpload } from '@/components/admin/ImageUpload'
-import { SessionsManager } from '@/components/admin/SessionsManager'
-import { EventHostsManager } from '@/components/admin/EventHostsManager'
+import { SessionsSection } from '@/components/admin/SessionsManager'
+import { EventHostsSection } from '@/components/admin/EventHostsManager'
 import { useAdmin } from '@/context/AdminContext'
 import { StatusBadge } from '@/pages/admin/AdminDashboard'
 import { Skeleton } from '@/components/ui/Skeleton'
@@ -27,8 +27,6 @@ export function EventsTab({ kind }: { kind: EventKind }) {
   const qc = useQueryClient()
   const { branchId, isSuperAdmin } = useAdmin()
   const [modal, setModal] = useState<{ open: boolean; event?: Event }>({ open: false })
-  const [sessionsModal, setSessionsModal] = useState<{ open: boolean; event?: Event }>({ open: false })
-  const [hostsModal, setHostsModal] = useState<{ open: boolean; event?: Event }>({ open: false })
   const noun = kind === 'cata' ? 'evento' : 'curso'
 
   const { data: events, isLoading } = useQuery<EventWithBranch[]>({
@@ -76,13 +74,13 @@ export function EventsTab({ kind }: { kind: EventKind }) {
           <table className="w-full text-sm">
             <thead className="border-b border-[var(--color-parchment)] bg-[var(--color-cream)]">
               <tr>
-                <th className="px-4 py-3 text-left font-medium text-[var(--color-muted)]">{kind === 'cata' ? 'Evento' : 'Curso'}</th>
+                <th className="px-4 py-3 text-left font-medium text-[var(--color-muted)]">{kind === 'cata' ? 'Cata' : 'Curso'}</th>
                 {isSuperAdmin && <th className="px-4 py-3 text-left font-medium text-[var(--color-muted)]">Sucursal</th>}
                 {kind === 'curso' && <th className="px-4 py-3 text-left font-medium text-[var(--color-muted)]">Instructor</th>}
                 <th className="px-4 py-3 text-left font-medium text-[var(--color-muted)]">{kind === 'cata' ? 'Fecha' : 'Inicio'}</th>
                 <th className="px-4 py-3 text-left font-medium text-[var(--color-muted)]">Lugares</th>
                 <th className="px-4 py-3 text-left font-medium text-[var(--color-muted)]">Precio</th>
-                {kind === 'cata' && <th className="px-4 py-3 text-left font-medium text-[var(--color-muted)]">Estado</th>}
+                <th className="px-4 py-3 text-left font-medium text-[var(--color-muted)]">Estado</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
@@ -95,28 +93,18 @@ export function EventsTab({ kind }: { kind: EventKind }) {
                   <td className="px-4 py-3 text-[var(--color-dark-muted)] capitalize">{formatDate(ev.date)}</td>
                   <td className="px-4 py-3 text-[var(--color-dark-muted)]">{ev.available_spots}/{ev.total_spots}</td>
                   <td className="px-4 py-3 text-[var(--color-dark-muted)]">{ev.price ? formatPrice(ev.price) : '—'}</td>
-                  {kind === 'cata' && (
-                    <td className="px-4 py-3">
-                      <StatusBadge status={ev.active ? 'active' : 'cancelled'} />
-                    </td>
-                  )}
+                  <td className="px-4 py-3">
+                    <StatusBadge status={ev.active ? 'active' : 'cancelled'} />
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-2">
-                      <Link to={`/admin/catas/${ev.id}/live`} className="rounded p-1 text-[var(--color-muted)] hover:text-[var(--color-wine)] transition-colors" title="Ver en vivo">
+                      <Link to={`/admin/catas/${ev.id}/live`} className="rounded p-1 text-[var(--color-muted)] hover:text-[var(--color-wine)] transition-colors" title="Ver en vivo (scanner de entradas)">
                         <QrCode size={14} />
                       </Link>
-                      {kind === 'curso' && (
-                        <button onClick={() => setSessionsModal({ open: true, event: ev })} className="rounded p-1 text-[var(--color-muted)] hover:text-[var(--color-wine)] transition-colors" title="Sesiones">
-                          <CalendarRange size={14} />
-                        </button>
-                      )}
-                      <button onClick={() => setHostsModal({ open: true, event: ev })} className="rounded p-1 text-[var(--color-muted)] hover:text-[var(--color-wine)] transition-colors" title="Hosts">
-                        <Users size={14} />
-                      </button>
-                      <button onClick={() => setModal({ open: true, event: ev })} className="rounded p-1 text-[var(--color-muted)] hover:text-[var(--color-dark)] transition-colors">
+                      <button onClick={() => setModal({ open: true, event: ev })} className="rounded p-1 text-[var(--color-muted)] hover:text-[var(--color-dark)] transition-colors" title="Editar">
                         <Pencil size={14} />
                       </button>
-                      <button onClick={() => handleDelete(ev.id)} className="rounded p-1 text-[var(--color-muted)] hover:text-red-600 transition-colors">
+                      <button onClick={() => handleDelete(ev.id)} className="rounded p-1 text-[var(--color-muted)] hover:text-red-600 transition-colors" title="Eliminar">
                         <Trash2 size={14} />
                       </button>
                     </div>
@@ -143,22 +131,6 @@ export function EventsTab({ kind }: { kind: EventKind }) {
           qc.invalidateQueries({ queryKey: ['admin-dashboard'] })
         }}
       />
-
-      {sessionsModal.event && (
-        <SessionsManager
-          open={sessionsModal.open}
-          event={sessionsModal.event}
-          onClose={() => setSessionsModal({ open: false })}
-        />
-      )}
-
-      {hostsModal.event && (
-        <EventHostsManager
-          open={hostsModal.open}
-          event={hostsModal.event}
-          onClose={() => setHostsModal({ open: false })}
-        />
-      )}
     </>
   )
 }
@@ -328,6 +300,16 @@ function EventModal({ kind, open, event, branchId, onClose, onSaved }: {
         </label>
         <FormActions onCancel={onClose} loading={loading} label={event ? 'Guardar cambios' : (kind === 'cata' ? 'Crear evento' : 'Crear curso')} />
       </form>
+
+      {/* Sessions (cursos) + hosts management live here now, only once the
+          event exists — they operate on its id directly, separate from the
+          form above. */}
+      {event?.id && (
+        <div className="mt-6 space-y-6 border-t border-[var(--color-parchment)] pt-6">
+          {kind === 'curso' && <SessionsSection event={event} />}
+          <EventHostsSection event={event} />
+        </div>
+      )}
     </Modal>
   )
 }
