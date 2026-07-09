@@ -142,8 +142,8 @@ export function AdminClubScan() {
         <div className="mb-6 flex items-center gap-2">
           <Wine size={20} className="text-[var(--color-wine)]" />
           <div>
-            <h1 className="font-display text-2xl text-[var(--color-dark)]">Canjes del Club</h1>
-            <p className="text-sm text-[var(--color-muted)] capitalize">Retiro de vinos · {monthLabel}</p>
+            <h1 className="font-display text-2xl text-[var(--color-dark)]">Escáner de canjes</h1>
+            <p className="text-sm text-[var(--color-muted)]">Retiro de vinos del Club · {monthLabel}</p>
           </div>
         </div>
 
