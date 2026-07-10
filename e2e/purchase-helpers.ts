@@ -3,12 +3,17 @@ import { expect, type Page } from '@playwright/test'
 // Shared by every purchase-*.spec.ts file — NOT for CI, since payWithTestCard
 // pauses mid-test waiting for a human to complete the MercadoPago card form.
 // MP's checkout blocks automated pointer events on the entire card-form page
-// (not just the Pagar button), so there's no way to script past it (see
-// memory: mp-sandbox-testing). Run with `npx playwright test <name> --headed`
-// and complete the card form yourself when the Inspector pops up.
+// (not just the Pagar button), so there's no way to script past it. Run with
+// `npx playwright test <name> --headed` and complete the card form yourself
+// when the Inspector pops up. See e2e/MANUAL-TESTS.md for the full runbook.
+//
+// ⚠️ The env MP_ACCESS_TOKEN is the PRODUCTION token (APP_USR-), so this
+// sandbox card is REJECTED — enter a REAL card at the pause (real charge; refund
+// it afterward, see MANUAL-TESTS.md → Limpieza). Kept only as the field
+// reference for the shape of the form.
 export const TEST_CARD = {
-  number: '5031 7557 3453 0604', // Mastercard sandbox
-  holder: 'APRO', // triggers an approved payment
+  number: '5031 7557 3453 0604', // Mastercard sandbox — only works with a TEST- token
+  holder: 'APRO', // (sandbox only) triggers an approved payment
   expiry: '11/30',
   cvv: '123',
   dni: '12345678',
@@ -55,66 +60,29 @@ export async function loginCheckoutTester(page: Page): Promise<void> {
 export async function payWithTestCard(page: Page, label: string): Promise<void> {
   await page.getByRole('button', { name: 'Tarjeta Crédito, débito o' }).click()
 
-  console.log(`\n>>> Complete the card form for ${label} and click Pagar:`)
-  console.log(TEST_CARD)
+  console.log(`\n>>> Complete the card form for ${label} with a REAL card (prod token — real charge) and click Pagar:`)
   await page.pause()
 
   await expect(page).toHaveURL(/\/pago-exitoso/, { timeout: 30_000 })
 }
 
-// MercadoPago's own docs for testing PreApproval subscriptions require a
-// real MP "usuario de prueba" logged in through "Ingresar con mi cuenta" —
-// the guest "Tarjeta" checkout that works fine for one-time payments does
-// NOT work here. Confirmed the hard way, three times:
-// 1. Guest checkout on a subscription silently associated the attempt with
-//    whoever's real MercadoPago account owns the seller's MP_ACCESS_TOKEN —
-//    a real "tu tarjeta rechazó el pago" email landed in that real
-//    person's inbox — and always failed with a generic "no pudimos
-//    procesar tu pago", nothing to do with our card details or app code.
-// 2. A test buyer created ad hoc via POST /users/test (no explicit
-//    buyer/seller type) still hit "una de las partes es de prueba" against
-//    our real seller — it was created under the same application/token as
-//    the seller, so MP still considered them the same test "party".
-// 3. Even a properly PAIRED vendedor+comprador test account, created
-//    together via MercadoPago's dashboard ("Tus integraciones" → "Cuentas
-//    de prueba", one of each type, same country) — MP_TEST_BUYER below
-//    ("Comprador A") — still hits the same "una de las partes es de
-//    prueba" fatal error against our real seller. The seller side
-//    (collector_id 83212592) is a real, non-test MercadoPago account no
-//    matter which of our own credentials call the API, and MP's sandbox
-//    has no way to let a real seller test a PreApproval checkout end to
-//    end. This function gets a human as far into the flow as MP allows
-//    (through login, up to the security-code step) — useful for manually
-//    confirming everything up to that point still renders correctly — but
-//    it CANNOT currently reach /pago-exitoso. Don't "fix" this by trying
-//    yet another test-buyer combination; the seller identity is the
-//    blocker, not the buyer.
-const MP_TEST_BUYER = { nickname: 'TESTUSER7682991671644190556', password: 'HvaWovne9E' }
-
+// Club subscriptions are a MercadoPago PreApproval — the checkout requires a
+// real MP account login ("Ingresar con mi cuenta"), not the guest "Tarjeta"
+// flow the one-time purchases use. With the PRODUCTION token in use (real
+// seller) + a real buyer account, this completes end-to-end to /pago-exitoso —
+// a REAL recurring subscription that must be cancelled afterward (see
+// e2e/MANUAL-TESTS.md → Limpieza). (In sandbox this used to fail with "una de
+// las partes es de prueba": the seller was real and the buyer was a test user,
+// and that mismatch — not the buyer — was the blocker.) The MP login, card, and
+// security code all live in secure fields that block automated input, so this
+// hands off to the human after opening the login step.
 export async function payWithTestCardSubscription(page: Page, label: string): Promise<void> {
   await page.getByRole('checkbox', { name: /Acepto los Términos y condiciones/ }).click()
   await page.getByRole('button', { name: 'Elegir medio de pago' }).click()
   await page.getByRole('button', { name: 'Ingresar con mi cuenta' }).click()
 
-  await page.getByRole('textbox', { name: 'DNI, e-mail o teléfono' }).fill(MP_TEST_BUYER.nickname)
-  await page.getByRole('button', { name: 'Continuar' }).click()
-  await page.getByRole('button', { name: /^Contraseña/ }).click()
-  await page.getByRole('textbox', { name: 'Contraseña' }).fill(MP_TEST_BUYER.password)
-  await page.getByRole('button', { name: 'Confirmar' }).click()
-
-  // Confirms the MP_TEST_BUYER login actually succeeded (not just that the
-  // click didn't throw) before handing off to the human — a stale/rotated
-  // password would otherwise only surface as an opaque 30s timeout on the
-  // final toHaveURL below, with nothing pointing at a failed login as the
-  // cause.
-  await expect(page.getByRole('heading', { name: 'Confirmá tu suscripción' })).toBeVisible()
-
-  // Lands on the subscription review page with Comprador A's own test card
-  // already attached — only the security code (inside a secure iframe,
-  // like every other card field on MP's checkout) is left, and that one
-  // blocks automated input same as payWithTestCard's form above.
-  console.log(`\n>>> Enter the security code for Comprador A's pre-attached test card and click "Pagar suscripción" (for ${label}):`)
+  console.log(`\n>>> Log in to MercadoPago with a REAL account, complete the card + security code, and click "Pagar suscripción" (for ${label}):`)
   await page.pause()
 
-  await expect(page).toHaveURL(/\/pago-exitoso/, { timeout: 30_000 })
+  await expect(page).toHaveURL(/\/pago-exitoso/, { timeout: 60_000 })
 }
