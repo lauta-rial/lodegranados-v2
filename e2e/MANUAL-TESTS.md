@@ -28,6 +28,17 @@ Dos formas de correrlos:
 | CVV | `123` |
 | DNI | `12345678` |
 
+> ⚠️ **Token de MercadoPago — leer antes de testear.** La tarjeta de prueba de
+> arriba **solo funciona con un token `TEST-`** (sandbox). Hoy el
+> `MP_ACCESS_TOKEN` del entorno es el de **producción** (`APP_USR-…`), así que:
+> - Con el token prod, la tarjeta `APRO` **es rechazada** — un pago requiere una
+>   **tarjeta real** → **cobro real** (~$50 a la cuenta MP del vendedor).
+> - Para testear con la tarjeta de prueba, hay que **cambiar temporalmente**
+>   `MP_ACCESS_TOKEN` al token `TEST-` de la misma app y volver a prod después.
+>
+> En producción el token prod es el correcto (cobra a clientes reales); esta
+> nota es solo para el testing manual.
+
 > ⚠️ **Antes de empezar: borrá las cookies del navegador.** Si MercadoPago
 > encuentra una sesión previa, el checkout falla con "una de las partes es de
 > prueba" en vez de mostrar el checkout de invitado.
