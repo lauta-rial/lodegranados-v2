@@ -31,8 +31,8 @@ export function Cursos() {
       {!isLoading && !error && courses?.length === 0 && <CursosEmpty />}
       {!isLoading && !error && courses && courses.length > 0 && (
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-          {courses.map((course) => (
-            <CourseCard key={course.id} course={course} branchSlug={branch?.slug ?? ''} />
+          {courses.map((course, i) => (
+            <CourseCard key={course.id} course={course} branchSlug={branch?.slug ?? ''} index={i} />
           ))}
         </div>
       )}
@@ -40,7 +40,7 @@ export function Cursos() {
   )
 }
 
-function CourseCard({ course, branchSlug }: { course: Event; branchSlug: string }) {
+function CourseCard({ course, branchSlug, index }: { course: Event; branchSlug: string; index: number }) {
   const soldOut = course.available_spots === 0
 
   return (
@@ -54,7 +54,7 @@ function CourseCard({ course, branchSlug }: { course: Event; branchSlug: string 
         style={{ background: 'linear-gradient(160deg, #c4956a 0%, #8b5e3c 100%)' }}
       >
         <img
-          src={course.image_url || defaultImageFor('curso', course.id)}
+          src={course.image_url || defaultImageFor('curso', course.id, index)}
           alt={course.title}
           className="h-full w-full object-cover"
         />

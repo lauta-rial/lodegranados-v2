@@ -13,28 +13,37 @@ export const DEFAULT_IMAGES = {
   expClub: '/defaults/exp-club.jpg',
 } as const
 
-// A pool per entity kind so a page full of catas/cursos/planes without their
-// own image_url doesn't repeat the same photo N times. The pick is keyed off
-// the row id (below), so a given cata always shows the same image — stable
-// across reloads and pagination, just varied across rows.
+// A pool of distinct wine photos per entity kind, so a listing of
+// catas/cursos/planes without their own image_url doesn't repeat the same
+// photo. Every image here is a hand-checked, visually-distinct wine shot; some
+// are reused across pools (a cata and a plan can share one — they never appear
+// on the same page). The pick is by list position (below), not random, so it's
+// stable across reloads.
 const POOLS = {
-  cata: ['/defaults/cata.jpg', '/defaults/cata-2.jpg', '/defaults/cata-3.jpg', '/defaults/cata-4.jpg'],
-  curso: ['/defaults/curso.jpg', '/defaults/curso-2.jpg', '/defaults/curso-3.jpg', '/defaults/curso-4.jpg'],
-  plan: ['/defaults/plan.jpg', '/defaults/plan-2.jpg', '/defaults/plan-3.jpg', '/defaults/plan-4.jpg'],
+  cata: ['/defaults/cata.jpg', '/defaults/cata-3.jpg', '/defaults/curso-2.jpg', '/defaults/plan-4.jpg'],
+  curso: ['/defaults/curso-3.jpg', '/defaults/curso-4.jpg', '/defaults/curso.jpg', '/defaults/cata-3.jpg'],
+  plan: ['/defaults/plan.jpg', '/defaults/plan-3.jpg', '/defaults/curso-2.jpg', '/defaults/plan-4.jpg'],
 } as const
 
 // Small stable string hash (djb2-ish) so the same id always maps to the same
-// pool slot — no Math.random (would reshuffle every render).
+// pool slot when no list position is available (e.g. a detail page).
 function hashId(id: string): number {
   let h = 0
   for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0
   return Math.abs(h)
 }
 
-// Fallback image for a row with no image_url — deterministic by id so it's
-// stable per row but varied across a listing. Pass the row's id.
-export function defaultImageFor(kind: keyof typeof POOLS, id: string | null | undefined): string {
+// Fallback image for a row with no image_url. In a listing pass the row's
+// `index` — the pool is walked in order so the first N rows are all distinct
+// (no hash collisions). On a standalone detail page omit index and it falls
+// back to an id-hashed pick (stable per row).
+export function defaultImageFor(
+  kind: keyof typeof POOLS,
+  id: string | null | undefined,
+  index?: number,
+): string {
   const pool = POOLS[kind]
+  if (typeof index === 'number') return pool[index % pool.length]
   if (!id) return pool[0]
   return pool[hashId(id) % pool.length]
 }

@@ -31,8 +31,8 @@ export function Catas() {
       {!isLoading && !error && events?.length === 0 && <CatasEmpty />}
       {!isLoading && !error && events && events.length > 0 && (
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {events.map((event) => (
-            <EventCard key={event.id} event={event} branchSlug={branch?.slug ?? ''} />
+          {events.map((event, i) => (
+            <EventCard key={event.id} event={event} branchSlug={branch?.slug ?? ''} index={i} />
           ))}
         </div>
       )}
@@ -40,7 +40,7 @@ export function Catas() {
   )
 }
 
-function EventCard({ event, branchSlug }: { event: Event; branchSlug: string }) {
+function EventCard({ event, branchSlug, index }: { event: Event; branchSlug: string; index: number }) {
   const spotsLeft = event.available_spots
   const soldOut = spotsLeft === 0
 
@@ -55,7 +55,7 @@ function EventCard({ event, branchSlug }: { event: Event; branchSlug: string }) 
         style={{ background: 'linear-gradient(135deg, #7b1c35 0%, #2c1810 100%)' }}
       >
         <img
-          src={event.image_url || defaultImageFor('cata', event.id)}
+          src={event.image_url || defaultImageFor('cata', event.id, index)}
           alt={event.title}
           className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
         />

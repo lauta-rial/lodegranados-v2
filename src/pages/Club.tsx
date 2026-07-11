@@ -40,8 +40,8 @@ export function Club() {
         {!isLoading && !error && plans?.length === 0 && <PlansEmpty />}
         {!isLoading && !error && plans && plans.length > 0 && (
           <div className="mx-auto max-w-3xl grid grid-cols-1 gap-6 sm:grid-cols-2">
-            {plans.map((plan) => (
-              <PlanCard key={plan.id} plan={plan} branchSlug={branch?.slug ?? ''} branchId={branch?.id ?? ''} />
+            {plans.map((plan, i) => (
+              <PlanCard key={plan.id} plan={plan} branchSlug={branch?.slug ?? ''} branchId={branch?.id ?? ''} index={i} />
             ))}
           </div>
         )}
@@ -68,7 +68,7 @@ export function Club() {
   )
 }
 
-function PlanCard({ plan, branchSlug, branchId }: { plan: Plan; branchSlug: string; branchId: string }) {
+function PlanCard({ plan, branchSlug, branchId, index }: { plan: Plan; branchSlug: string; branchId: string; index: number }) {
   const features = Array.isArray(plan.features) ? (plan.features as string[]) : []
   const { user } = useAuth()
   const { subscribe, loading, error: subscribeError } = useSubscription()
@@ -120,7 +120,7 @@ function PlanCard({ plan, branchSlug, branchId }: { plan: Plan; branchSlug: stri
         )}
 
         <div className="-mx-8 -mt-8 mb-6 h-36 overflow-hidden rounded-t-2xl">
-          <img src={plan.image_url || defaultImageFor('plan', plan.id)} alt={plan.name} className="h-full w-full object-cover" />
+          <img src={plan.image_url || defaultImageFor('plan', plan.id, index)} alt={plan.name} className="h-full w-full object-cover" />
         </div>
 
         <div className="flex items-center gap-3">
