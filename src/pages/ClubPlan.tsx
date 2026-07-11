@@ -12,7 +12,7 @@ import { ClubQr } from '@/components/ClubQr'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { formatPrice } from '@/lib/utils'
 import { cn } from '@/lib/utils'
-import { DEFAULT_IMAGES } from '@/lib/defaultImages'
+import { defaultImageFor } from '@/lib/defaultImages'
 import type { Plan } from '@/types/database'
 
 export function ClubPlan() {
@@ -78,7 +78,7 @@ export function ClubPlan() {
       </Link>
 
       <div className="mb-10 h-52 w-full overflow-hidden rounded-2xl">
-        <img src={plan.image_url || DEFAULT_IMAGES.plan} alt={plan.name} className="h-full w-full object-cover" />
+        <img src={plan.image_url || defaultImageFor('plan', plan.id)} alt={plan.name} className="h-full w-full object-cover" />
       </div>
 
       <div className="grid grid-cols-1 gap-12 lg:grid-cols-5">

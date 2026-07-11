@@ -92,10 +92,12 @@ export function BranchHome() {
             className="group relative overflow-hidden rounded-2xl"
             style={{ minHeight: '260px' }}
           >
-            <div className="absolute inset-0 transition-transform duration-500 group-hover:scale-105"
-              style={{ background: 'linear-gradient(160deg, #7b1c35 0%, #2c1810 100%)' }} />
+            <div className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-105"
+              style={{ backgroundImage: `url(${DEFAULT_IMAGES.expCatas})` }} />
+            <div className="absolute inset-0"
+              style={{ background: 'linear-gradient(160deg, rgba(123,28,53,0.72) 0%, rgba(44,24,16,0.9) 100%)' }} />
             <div className="absolute inset-0 flex flex-col justify-between p-8">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm">
                 <Wine className="text-white" size={18} />
               </div>
               <div>
@@ -113,10 +115,12 @@ export function BranchHome() {
             className="group relative overflow-hidden rounded-2xl"
             style={{ minHeight: '260px' }}
           >
-            <div className="absolute inset-0 transition-transform duration-500 group-hover:scale-105"
-              style={{ background: 'linear-gradient(160deg, #c4956a 0%, #8b5e3c 100%)' }} />
+            <div className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-105"
+              style={{ backgroundImage: `url(${DEFAULT_IMAGES.expCursos})` }} />
+            <div className="absolute inset-0"
+              style={{ background: 'linear-gradient(160deg, rgba(196,149,106,0.68) 0%, rgba(139,94,60,0.9) 100%)' }} />
             <div className="absolute inset-0 flex flex-col justify-between p-8">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/25 backdrop-blur-sm">
                 <BookOpen className="text-white" size={18} />
               </div>
               <div>
@@ -134,10 +138,12 @@ export function BranchHome() {
             className="group relative overflow-hidden rounded-2xl"
             style={{ minHeight: '260px' }}
           >
-            <div className="absolute inset-0 transition-transform duration-500 group-hover:scale-105"
-              style={{ background: 'linear-gradient(160deg, #2c1810 0%, #5c4033 100%)' }} />
+            <div className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-105"
+              style={{ backgroundImage: `url(${DEFAULT_IMAGES.expClub})` }} />
+            <div className="absolute inset-0"
+              style={{ background: 'linear-gradient(160deg, rgba(44,24,16,0.66) 0%, rgba(92,64,51,0.9) 100%)' }} />
             <div className="absolute inset-0 flex flex-col justify-between p-8">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/25 backdrop-blur-sm">
                 <Users className="text-white" size={18} />
               </div>
               <div>

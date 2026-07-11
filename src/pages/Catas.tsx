@@ -5,7 +5,7 @@ import { useBranch } from '@/context/BranchContext'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { Badge } from '@/components/ui/Badge'
 import { formatDate, formatPrice } from '@/lib/utils'
-import { DEFAULT_IMAGES } from '@/lib/defaultImages'
+import { defaultImageFor } from '@/lib/defaultImages'
 import type { Event } from '@/types/database'
 
 export function Catas() {
@@ -55,7 +55,7 @@ function EventCard({ event, branchSlug }: { event: Event; branchSlug: string }) 
         style={{ background: 'linear-gradient(135deg, #7b1c35 0%, #2c1810 100%)' }}
       >
         <img
-          src={event.image_url || DEFAULT_IMAGES.cata}
+          src={event.image_url || defaultImageFor('cata', event.id)}
           alt={event.title}
           className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
         />

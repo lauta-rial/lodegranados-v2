@@ -37,6 +37,21 @@ export async function getBranchMp(
 // travel here rather than via preapproval_plan_id. Format
 // `sub:<branchId>:<userId>:<planId>`; userId is empty for guest checkouts.
 // All three are UUIDs (colon-free), so a plain split is unambiguous.
+// MercadoPago's POST /preapproval returns a 500 "Internal server error" when
+// payer_email contains plus-addressing (juan+tag@gmail.com) — a real, RFC-valid
+// address form. Since a `+tag` is by definition a sub-address of the same
+// mailbox, and the pending-preapproval flow re-resolves the real payer at the
+// init_point (MP echoes payer_email back empty anyway), stripping the tag is a
+// safe way past MP's broken validation. `juan+wine@gmail.com` -> `juan@gmail.com`.
+export function sanitizePayerEmail(email: string): string {
+  const at = email.lastIndexOf('@')
+  if (at < 0) return email
+  const local = email.slice(0, at)
+  const domain = email.slice(at)
+  const plus = local.indexOf('+')
+  return plus < 0 ? email : local.slice(0, plus) + domain
+}
+
 export function encodeSubRef(branchId: string, userId: string | null | undefined, planId: string): string {
   return `sub:${branchId}:${userId ?? ''}:${planId}`
 }

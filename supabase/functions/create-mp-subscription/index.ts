@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { createClient } from "jsr:@supabase/supabase-js@2"
 import { handleOptions, jsonResponse } from "../_shared/http.ts"
-import { getBranchMp, encodeSubRef } from "../_shared/mp.ts"
+import { getBranchMp, encodeSubRef, sanitizePayerEmail } from "../_shared/mp.ts"
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? ''
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -42,6 +42,14 @@ Deno.serve(async (req) => {
     // Which MercadoPago account this branch collects into (global fallback).
     const { accessToken } = await getBranchMp(supabase, branchId)
 
+    // MP's /preapproval endpoint 500s ("Internal server error") on a payer_email
+    // that carries plus-addressing (juan+tag@gmail.com) — a legitimate address
+    // real users have. In the pending flow the payer re-authenticates at the
+    // init_point and MP ignores this email anyway (it comes back empty), so we
+    // strip the +tag purely to get past MP's broken validation. See
+    // sanitizePayerEmail.
+    const cleanPayerEmail = sanitizePayerEmail(payerEmail)
+
     // Create the subscription WITHOUT a preapproval_plan_id — an inline
     // auto_recurring config is the only shape MP returns an init_point for
     // (a plan_id preapproval demands a card_token_id and gives no redirect),
@@ -54,7 +62,7 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         reason: `Club DeVinos — ${plan.name}`,
-        payer_email: payerEmail,
+        payer_email: cleanPayerEmail,
         external_reference: encodeSubRef(branchId, userId, plan.id),
         back_url: `${siteUrl || SITE_URL}/pago-exitoso?type=plan`,
         status: 'pending',

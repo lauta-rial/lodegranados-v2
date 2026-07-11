@@ -5,7 +5,7 @@ import { useBranch } from '@/context/BranchContext'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { Badge } from '@/components/ui/Badge'
 import { formatDate, formatPrice } from '@/lib/utils'
-import { DEFAULT_IMAGES } from '@/lib/defaultImages'
+import { defaultImageFor } from '@/lib/defaultImages'
 import type { Event } from '@/types/database'
 
 export function Cursos() {
@@ -54,7 +54,7 @@ function CourseCard({ course, branchSlug }: { course: Event; branchSlug: string 
         style={{ background: 'linear-gradient(160deg, #c4956a 0%, #8b5e3c 100%)' }}
       >
         <img
-          src={course.image_url || DEFAULT_IMAGES.curso}
+          src={course.image_url || defaultImageFor('curso', course.id)}
           alt={course.title}
           className="h-full w-full object-cover"
         />
