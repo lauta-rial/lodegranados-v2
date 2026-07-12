@@ -22,10 +22,11 @@ export const DEFAULT_IMAGES = {
 const POOLS = {
   cata: ['/defaults/cata.jpg', '/defaults/cata-3.jpg', '/defaults/curso-2.jpg', '/defaults/plan-4.jpg'],
   curso: ['/defaults/curso-3.jpg', '/defaults/curso-4.jpg', '/defaults/curso.jpg', '/defaults/cata-3.jpg'],
-  // plan.jpg and plan-3.jpg are both a French bottle + glass on white — nearly
-  // identical, so keep them apart: slots 0/1 (the only two the 2-plan Club page
-  // ever shows) are the most visually distinct of the set.
-  plan: ['/defaults/plan.jpg', '/defaults/plan-4.jpg', '/defaults/curso-2.jpg', '/defaults/plan-3.jpg'],
+  // All four visually distinct (bottle-on-white / glass-over-vineyard / rosé
+  // pour / bottles-on-shelf), so any number of image-less plans on one page
+  // stays varied — not just the 2-plan case. (plan-3.jpg, a near-duplicate of
+  // plan.jpg, is intentionally dropped.)
+  plan: ['/defaults/plan.jpg', '/defaults/plan-4.jpg', '/defaults/curso-2.jpg', '/defaults/curso-3.jpg'],
 } as const
 
 // Small stable string hash (djb2-ish) so the same id always maps to the same
