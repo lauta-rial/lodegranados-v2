@@ -119,3 +119,5 @@ Claude Code auto-reads `CLAUDE.md` and `.mcp.json`. It will have access to all M
 5. Checkout page is orphaned — catas/cursos go directly to MP
 6. CORS only allows production domain
 7. Always `npm run build` before push (tsc --noEmit unreliable)
+
+<!-- dev deploy trigger -->
